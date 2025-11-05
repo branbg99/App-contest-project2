@@ -1,0 +1,114 @@
+{
+  "$description": "Design tokens for ProjectSearchBar UI2 (dark theme)",
+  "$schema": "https://schemas.tokens.studio/schemas/2023-02-13/schema.json",
+  "$themes": [
+    {
+      "id": "dark",
+      "name": "Dark",
+      "selectedTokenSets": { "core": "source" },
+      "$figmaStyleReferences": {}
+    }
+  ],
+  "core": {
+    "color": {
+      "bg": { "value": "#32302f" },
+      "bgAlt": { "value": "#3c3836" },
+      "panel": { "value": "#282828" },
+      "panelAlt": { "value": "#3c3836" },
+      "text": { "value": "#ebdbb2" },
+      "muted": { "value": "#bdae93" },
+      "border": { "value": "#504945" },
+      "link": { "value": "#83a598" },
+      "accent": { "value": "#fe8019" },
+      "accentText": { "value": "#1d2021" },
+      "accentBorder": { "value": "#d65d0e" }
+    },
+    "gradient": {
+      "accentToLink": {
+        "type": "gradient",
+        "value": {
+          "gradientType": "linear",
+          "rotation": 90,
+          "stops": [
+            { "position": 0, "color": "#fe8019" },
+            { "position": 1, "color": "#83a598" }
+          ]
+        }
+      }
+    },
+    "radius": {
+      "sm": { "value": "10px" },
+      "md": { "value": "12px" },
+      "pill": { "value": "999px" }
+    },
+    "spacing": {
+      "s": { "value": "8px" },
+      "m": { "value": "10px" },
+      "l": { "value": "12px" },
+      "xl": { "value": "14px" }
+    },
+    "shadow": {
+      "strong": {
+        "type": "boxShadow",
+        "value": [
+          { "x": 0, "y": 10, "blur": 26, "spread": 0, "color": "rgba(0,0,0,0.45)" }
+        ]
+      }
+    },
+    "fontFamilies": {
+      "ui": { "value": "Inter" },
+      "mono": { "value": "Roboto Mono" }
+    },
+    "fontSizes": {
+      "12": { "value": "12px" },
+      "14": { "value": "14px" },
+      "16": { "value": "16px" },
+      "18": { "value": "18px" }
+    },
+    "fontWeights": {
+      "regular": { "value": "400" },
+      "medium": { "value": "500" },
+      "semibold": { "value": "600" }
+    },
+    "lineHeights": {
+      "tight": { "value": "1.2" },
+      "normal": { "value": "1.45" },
+      "loose": { "value": "1.6" }
+    },
+    "typography": {
+      "Body/14": {
+        "value": {
+          "fontFamily": "{fontFamilies.ui}",
+          "fontWeight": "{fontWeights.regular}",
+          "fontSize": "{fontSizes.14}",
+          "lineHeight": "{lineHeights.normal}"
+        }
+      },
+      "Small/12": {
+        "value": {
+          "fontFamily": "{fontFamilies.ui}",
+          "fontWeight": "{fontWeights.regular}",
+          "fontSize": "{fontSizes.12}",
+          "lineHeight": "{lineHeights.normal}"
+        }
+      },
+      "Heading/14": {
+        "value": {
+          "fontFamily": "{fontFamilies.ui}",
+          "fontWeight": "{fontWeights.semibold}",
+          "fontSize": "{fontSizes.14}",
+          "lineHeight": "{lineHeights.tight}"
+        }
+      },
+      "Mono/12": {
+        "value": {
+          "fontFamily": "{fontFamilies.mono}",
+          "fontWeight": "{fontWeights.regular}",
+          "fontSize": "{fontSizes.12}",
+          "lineHeight": "{lineHeights.normal}"
+        }
+      }
+    }
+  }
+}
+

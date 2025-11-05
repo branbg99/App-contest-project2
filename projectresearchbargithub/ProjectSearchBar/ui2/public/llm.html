@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Paper Chat</title>
+  <!-- KaTeX -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css" />
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"></script>
+  <style>
+    :root{ color-scheme: dark; --bg:#32302f; --panel:#282828; --panel-alt:#3c3836; --text:#ebdbb2; --muted:#bdae93; --border:#504945; --link:#83a598; }
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#1d2021;color:#ebdbb2;margin:0;padding:20px;line-height:1.6;min-height:100vh;box-sizing:border-box;}
+    html,body{overflow-x:hidden;width:100%;}
+    .h1,.h2,.h3{display:block;font-weight:600;line-height:1.3;margin:0.6em 0 0.4em;}
+    .h1{font-size:1.6em;color:#fabd2f;}
+    .h2{font-size:1.35em;color:#d79921;}
+    .h3{font-size:1.2em;color:#b8bb26;}
+    .message{margin:20px 0;display:flex;gap:16px;max-width:100%;}
+    .avatar{width:36px;height:36px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:bold;flex-shrink:0;}
+    .user .avatar{background:#98971a;color:#1d2021;}
+    .assistant .avatar{background:#458588;color:#ebdbb2;}
+    .content{flex:1;max-width:calc(100% - 52px);min-width:0;}
+    .user .content{margin-left:auto;text-align:right;}
+    .bubble{background:#282828;color:#ebdbb2;display:block;width:100%;padding:12px 16px;border-radius:8px;white-space:pre-wrap;box-sizing:border-box;word-wrap:break-word;}
+    .user .bubble{background:#3c3836;}
+    .typing-dots{ display:inline-flex; gap:6px; margin-left:6px; vertical-align:middle; }
+    .typing-dots .dot{ width:6px; height:6px; border-radius:50%; background:#bdae93; opacity:.6; animation:bounce 1.2s infinite ease-in-out; }
+    .typing-dots .dot:nth-child(1){ animation-delay:0s }
+    .typing-dots .dot:nth-child(2){ animation-delay:.2s }
+    .typing-dots .dot:nth-child(3){ animation-delay:.4s }
+    @keyframes bounce{ 0%,80%,100%{ transform:scale(0.7); opacity:.4 } 40%{ transform:scale(1); opacity:1 } }
+    /* Code block styles from modular GUI */
+    .code-block-container{ margin:12px 0; background:#282828; border:1px solid #3c3836; border-radius:10px; overflow:hidden; box-shadow:0 0 0 1px rgba(0,0,0,.35), 0 10px 22px rgba(0,0,0,.28); }
+    .code-block-header{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 12px; background:#32302f; border-bottom:1px solid #3c3836; color:#bdae93; font-size:.82rem; }
+    .language-badge{ display:inline-flex; align-items:center; justify-content:center; padding:2px 10px; border-radius:999px; background:#504945; color:#ebdbb2; font-weight:600; font-size:.75rem; text-transform:uppercase; letter-spacing:.02em; }
+    .header-actions{ display:flex; align-items:center; gap:6px; }
+    .icon-btn{ display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:6px; border:1px solid #3c3836; background:#504945; color:#ebdbb2; cursor:pointer; font-size:.78rem; line-height:1; }
+    .icon-btn:hover{ background:#665c54; }
+    .code-scroll{ max-height:520px; overflow:auto; background:transparent; }
+    pre{ background:transparent; border:none; margin:0; padding:14px 16px; font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', Consolas, 'Liberation Mono', monospace; font-size:0.90rem; line-height:1.45; white-space:pre; }
+    .code-block-container.is-wrapped pre{ white-space:pre-wrap; word-break:break-word; overflow-wrap:anywhere; }
+    code{ background:#3c3836; padding:2px 6px; border-radius:4px; font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', Consolas, 'Liberation Mono', monospace; color:#ebdbb2; }
+    .code-block-container pre code{ background:none; padding:0; color:#ebdbb2; user-select:text; }
+    #messages{}
+    #loading{margin:12px 0;padding:14px 16px;background:#282828;border:1px solid #3c3836;border-radius:8px;}
+    #loading .typing{display:inline-flex;align-items:center;gap:10px;}
+    #loading-text{font-weight:600;color:#ebdbb2}
+    #loading .dim{color:#a89984;margin-top:4px;font-size:0.92rem}
+    .dot{width:8px;height:8px;border-radius:50%;background:#bdae93;opacity:.6;animation:bounce 1.2s infinite ease-in-out;}
+    .dot:nth-child(1){animation-delay:0s}
+    .dot:nth-child(2){animation-delay:.2s}
+    .dot:nth-child(3){animation-delay:.4s}
+    @keyframes bounce{0%,80%,100%{transform:scale(0.7);opacity:.4}40%{transform:scale(1);opacity:1}}
+  </style>
+</head>
+<body>
+  <div id="messages"></div>
+  <div id="loading" style="display:none;">
+    <div class="typing">
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      <div id="loading-text">Thinking</div>
+    </div>
+    <div id="loading-sub" class="dim"></div>
+  </div>
+
+  <script>
+    function renderMathIn(node){
+      if(!node||typeof renderMathInElement!=='function'){setTimeout(()=>renderMathIn(node),25);return;}
+      renderMathInElement(node,{delimiters:[{left:'$$',right:'$$',display:true},{left:'\\[',right:'\\]',display:true},{left:'$',right:'$',display:false},{left:'\\(',right:'\\)',display:false}],throwOnError:false});
+    }
+
+    // Minimal chat renderer subset (based on modular GUI)
+    class ChatRenderer{
+      constructor(){ this.messagesContainer=document.getElementById('messages'); this.loadingElement=document.getElementById('loading'); }
+      escapeHtml(t){ const m={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}; return String(t).replace(/[&<>"']/g,(c)=>m[c]||c); }
+      processMarkdown(text){ return text
+        .replace(/^###\s+(.+)$/gm,'<span class="h3">$1</span>')
+        .replace(/^##\s+(.+)$/gm,'<span class="h2">$1</span>')
+        .replace(/^#\s+(.+)$/gm,'<span class="h1">$1</span>')
+        .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+        .replace(/\*([^*]+)\*/g,'<em>$1</em>')
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" target="_blank" rel="noreferrer noopener">$1</a>'); }
+      createCodeBlock(lang,raw,esc){ return `\n<div class="code-block-container"><div class="code-block-header"><span class="language-badge">${this.escapeHtml(lang||'text')}</span></div><div class="code-scroll"><pre><code class="language-${this.escapeHtml(lang||'text')}">${esc}</code></pre></div></div>`; }
+      processText(text){ const inline=[];const blocks=[];let ii=0,bi=0; let out=String(text||'').replace(/```(\w*)\r?\n?([\s\S]*?)```/g,(_,lang,body)=>{const e=this.escapeHtml(body);blocks[bi]=this.createCodeBlock(lang,body,e);return `__CODE_${bi++}__`}); out=out.replace(/`([^`]+)`/g,(_,c)=>{inline[ii]=`<code>${this.escapeHtml(c)}</code>`;return `__INLINE_${ii++}__`}); out=this.processMarkdown(out); out=out.replace(/__CODE_(\d+)__/g,(_,i)=>blocks[parseInt(i,10)]||''); out=out.replace(/__INLINE_(\d+)__/g,(_,i)=>inline[parseInt(i,10)]||''); return out; }
+      renderMathInExceptCodeBlocks(el){ if(!window.renderMathInElement){ setTimeout(()=>this.renderMathInExceptCodeBlocks(el),25); return;} const codes=el.querySelectorAll('.code-block-container'); const disp=[]; codes.forEach((n,i)=>{disp[i]=n.style.display;n.style.display='none';}); try{ renderMathIn(el);}catch(e){} codes.forEach((n,i)=>{n.style.display=disp[i]||'';}); }
+      addMessage(role,text){ const msg=document.createElement('div'); msg.className=`message ${role}`; const av=document.createElement('div'); av.className='avatar'; av.textContent= role==='user'?'U':'AI'; const ct=document.createElement('div'); ct.className='content'; const b=document.createElement('div'); b.className='bubble'; b.innerHTML=this.processText(text); ct.appendChild(b); if(b.querySelectorAll('.code-block-container').length===0) this.renderMathInExceptCodeBlocks(b); if(role==='user') msg.append(ct,av); else msg.append(av,ct); this.messagesContainer.appendChild(msg); try{ window.scroll({top:document.body.scrollHeight,behavior:'smooth'});}catch{ window.scrollTo(0,document.body.scrollHeight);} }
+      clearMessages(){ this.messagesContainer.innerHTML=''; }
+      showLoading(show){ this.loadingElement.style.display = show ? 'block' : 'none'; }
+      setLoadingText(t){ const n=document.getElementById('loading-text'); if(n) n.textContent=String(t||''); }
+      typingStart(){
+        // Create an assistant bubble with typing dots, and prepare for incremental text
+        const msg=document.createElement('div'); msg.className='message assistant';
+        const av=document.createElement('div'); av.className='avatar'; av.textContent='AI';
+        const ct=document.createElement('div'); ct.className='content';
+        const b=document.createElement('div'); b.className='bubble';
+        const span = document.createElement('span'); span.className='typing-dots'; span.innerHTML='<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
+        const text = document.createElement('span'); text.className='typing-text';
+        b.appendChild(text); b.appendChild(span);
+        ct.appendChild(b); msg.append(av, ct);
+        this.messagesContainer.appendChild(msg);
+        this._typing = { msg, bubble: b, span, textEl: text, acc: '' };
+        try{ window.scroll({top:document.body.scrollHeight,behavior:'smooth'});}catch{ window.scrollTo(0,document.body.scrollHeight);} }
+      typingChunk(s){ if(!this._typing) return; this._typing.acc += String(s||''); this._typing.textEl.textContent = this._typing.acc; try{ window.scroll({top:document.body.scrollHeight,behavior:'smooth'});}catch{ window.scrollTo(0,document.body.scrollHeight);} }
+      typingEnd(){ if(!this._typing) return; const { bubble, span, acc } = this._typing; try{ span.remove(); }catch(e){} bubble.innerHTML = this.processText(acc); if(bubble.querySelectorAll('.code-block-container').length===0) this.renderMathInExceptCodeBlocks(bubble); this._typing = null; try{ window.scroll({top:document.body.scrollHeight,behavior:'smooth'});}catch{ window.scrollTo(0,document.body.scrollHeight);} }
+    }
+    const chatRenderer = new ChatRenderer();
+    window.addMessage = (r,t)=>chatRenderer.addMessage(r,t);
+    window.clearMessages = ()=>chatRenderer.clearMessages();
+    window.showLoading = (s)=>chatRenderer.showLoading(!!s);
+    window.setLoadingText = (t)=>chatRenderer.setLoadingText(t);
+    window.typingStart = ()=>chatRenderer.typingStart();
+    window.typingChunk = (t)=>chatRenderer.typingChunk(t);
+    window.typingEnd = ()=>chatRenderer.typingEnd();
+
+    // postMessage bridge compatible with host
+    window.addEventListener('message', (ev)=>{
+      const d = ev && ev.data || {};
+      try{
+        if (d.type==='llm:add') { window.addMessage(d.role||'assistant', String(d.text||'')); }
+        else if (d.type==='llm:clear') { window.clearMessages(); }
+        else if (d.type==='llm:loading') { if (d.show){ window.showLoading(true); window.setLoadingText(String(d.text||'Thinking')); } else { window.showLoading(false); } }
+        else if (d.type==='llm:typing_start') { window.typingStart(); }
+        else if (d.type==='llm:typing_chunk') { window.typingChunk(String(d.text||'')); }
+        else if (d.type==='llm:typing_end') { window.typingEnd(); }
+      }catch(e){ console.warn('llm iframe message error', e); }
+    });
+    try{ parent && parent.postMessage({ type:'llm:ready' }, '*'); }catch(e){}
+  </script>
+</body>
+</html>

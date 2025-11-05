@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ProjectSearchBar</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        /* Gruvbox Dark (soft) */
+        --bg: #32302f;          /* base background (softer brown) */
+        --bg-alt: #3c3836;      /* surfaces/cards */
+        --panel: #282828;       /* headers/panels */
+        --panel-alt: #3c3836;   /* inputs/secondary surfaces */
+        --text: #ebdbb2;        /* primary text */
+        --muted: #bdae93;       /* secondary text */
+        --border: #504945;      /* neutral border */
+        --link: #83a598;        /* link/heading accent (blue) */
+        --accent: #fe8019;      /* primary action (orange) */
+        --accent-text: #1d2021; /* text on accent */
+        --accent-border: #d65d0e; /* accent border */
+        --shadow: 0 10px 26px rgba(0,0,0,0.45);
+      }
+      body { font-family: system-ui, sans-serif; margin: 0; background: var(--bg); color: var(--text); }
+      header { padding: 10px 14px; border-bottom: 1px solid var(--border); display:flex; align-items:center; gap:12px; background: var(--panel); }
+      h1 { font-size: 14px; margin: 0; color: var(--link); }
+      .row { display:flex; align-items:center; gap:8px; flex: 1; }
+      input[type=text] { flex: 1; padding: 8px 10px; background: var(--panel-alt); color: var(--text); border:1px solid var(--border); border-radius:6px; }
+      button { padding: 7px 10px; border:1px solid var(--accent-border); background: var(--accent); color: var(--accent-text); border-radius:6px; cursor:pointer; white-space:nowrap; }
+      button.secondary { border-color: var(--border); background: var(--panel-alt); color: var(--text); }
+      button:disabled { opacity:.6; cursor:default; }
+      main { display:grid; grid-template-columns: 380px 1fr; min-height: calc(100vh - 48px); }
+      aside { border-right:1px solid var(--border); padding:12px; display:flex; flex-direction:column; gap:10px; background: var(--bg); }
+      .label { font-size:12px; color: var(--muted); }
+      .stat { color: var(--muted); font-size:12px; }
+      .muted { color: var(--muted); }
+      section.results { padding:12px; }
+      ol { padding-left: 20px; }
+      li.result { margin: 8px 0; padding: 10px; background: var(--bg-alt); border:1px solid var(--border); border-radius:6px; }
+      /* Score meter styling (shared with UI2) */
+      .res-head { display:flex; align-items:center; gap:8px; }
+      .score { display:flex; align-items:center; gap:8px; margin-left:auto; }
+      .score .score-bar { width: 120px; height: 6px; border:1px solid var(--border); background: var(--panel); border-radius:999px; overflow:hidden; }
+      .score .score-bar i { display:block; height:100%; background: linear-gradient(90deg, var(--accent), var(--link)); }
+      .score .score-num { font-size:12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+      .chip-subject { display:inline-block; padding:1px 6px; border:1px solid var(--border); border-radius:999px; font-size:11px; color: var(--muted); margin-left:6px; }
+      a { color: var(--link); text-decoration:none; }
+      .banner { padding: 6px 14px; font-size: 12px; color: var(--muted); border-bottom: 1px dashed var(--border); background: var(--panel); }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>ProjectSearchBar</h1>
+      <div class="row">
+        <input id="query" type="text" placeholder="Search (text or LaTeX like $x^2 + y^2$)" />
+        <button id="btnSearch">Search</button>
+        <button id="btnSettings" class="secondary" title="Build index and tune memory" onclick="(function(){ var m=document.getElementById('modalSettings'); if(m) m.classList.add('show'); })()">Settings</button>
+        <span id="status" class="stat"></span>
+      </div>
+    </header>
+    <div id="banner" class="banner">Ready</div>
+    
+    <!-- Bottom-left AI Chat dock -->
+    <style>
+      .llm-dock { position: fixed; left: 12px; bottom: 12px; width: 420px; height: 360px; background: var(--panel); border:1px solid var(--border); border-radius:8px; box-shadow: var(--shadow); display:flex; flex-direction:column; overflow:hidden; z-index: 1000; }
+      .llm-dock.min { height: 46px; }
+      .llm-dock header { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 10px; background: var(--panel); border-bottom:1px solid var(--border); }
+      .llm-dock header h3 { margin:0; font-size:13px; color: var(--link); }
+      .llm-dock header .actions { display:flex; gap:6px; }
+      .llm-dock header button { padding:4px 8px; border:1px solid var(--accent-border); background: var(--accent); color: var(--accent-text); border-radius:6px; cursor:pointer; }
+      .llm-list { display:flex; align-items:center; gap:6px; padding:6px 8px; border-bottom:1px solid var(--border); min-height:38px; overflow-x:auto; scrollbar-width: thin; background: var(--bg); }
+      .llm-list .hint { color: var(--muted); font-size:11px; white-space:nowrap; }
+      .chip { display:inline-flex; align-items:center; gap:6px; background: var(--panel-alt); border:1px solid var(--border); color: var(--text); padding:4px 6px; border-radius:14px; font-size:12px; }
+      .chip button { border:0; background:transparent; color: var(--muted); cursor:pointer; font-size:12px; padding:0 4px; }
+      .llm-dock.dragover { outline: 2px dashed var(--accent); outline-offset: -6px; }
+      .llm-body { flex:1; overflow:hidden; position:relative; }
+      .llm-body iframe { position:absolute; inset:0; width:100%; height:100%; border:0; display:block; background:transparent; z-index:1; }
+      .llm-input { display:flex; gap:6px; padding:8px 10px; border-top:1px solid var(--border); background: var(--panel); position:relative; z-index:2; }
+      .llm-input input { flex:1; padding:6px 8px; background: var(--panel-alt); color: var(--text); border:1px solid var(--border); border-radius:6px; }
+      .llm-input button { padding:6px 8px; border:1px solid var(--accent-border); background: var(--accent); color: var(--accent-text); border-radius:6px; }
+      /* Constrain chat bubbles inside dock */
+      #messages { font-size: 13px; }
+      #loading { margin:8px 0; }
+      @media (max-width: 860px) {
+        .llm-dock { width: 90vw; }
+      }
+    </style>
+    <div class="llm-dock" id="llmDock" aria-label="AI Chat">
+      <header>
+        <h3>AI Chat</h3>
+        <div class="actions">
+          <button id="btnLlmDebug" title="Toggle debug context display">Debug</button>
+          <button id="btnLlmToggle" title="Minimize">_</button>
+          <button id="btnLlmClear" title="Clear attached papers">Clear</button>
+          <button id="btnLlmClose" title="Hide">×</button>
+        </div>
+      </header>
+      <div class="llm-list" id="llmList"><span class="hint">Drag results here or use Add</span></div>
+      <div class="llm-body">
+        <iframe id="llmFrame" src="./llm.html" title="AI Chat"></iframe>
+      </div>
+      <div class="llm-input">
+        <input id="llmInput" type="text" placeholder="Ask AI (Ctrl/Cmd+Enter to send)" />
+        <button id="btnLlmSend" onclick="window._psbSend && window._psbSend()">Send</button>
+      </div>
+    </div>
+    <!-- Settings modal -->
+    <style>
+      .modal.backdrop { position: fixed; inset:0; background: rgba(0,0,0,0.6); display:none; align-items:flex-start; justify-content:center; z-index: 2000; padding: 10px; overflow-y:auto; }
+      .modal.backdrop.show { display:flex; }
+      /* Compact, always-on-screen panel */
+      .modal .panel { width: 520px; max-width: 95vw; max-height: 95vh; background: var(--panel); border:1px solid var(--border); border-radius:8px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); display:flex; flex-direction:column; overflow:hidden; margin: 14px auto; }
+      .modal .panel header { display:flex; align-items:center; justify-content:space-between; padding:8px 10px; border-bottom:1px solid var(--border); }
+      .modal .panel main { padding: 10px; display:flex; flex-direction:column; gap: 8px; overflow-y:auto; -webkit-overflow-scrolling: touch; flex: 1 1 auto; min-height: 0; overscroll-behavior: contain; }
+      .row2 { display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      .field { display:flex; flex-direction:column; gap:6px; }
+      .field input, .field select { padding: 7px 8px; background: var(--panel-alt); color: var(--text); border:1px solid var(--border); border-radius:6px; }
+      /* Actions anchored at bottom, always visible */
+      .actions { display:flex; gap: 8px; justify-content:flex-end; padding: 8px 10px; border-top: 1px solid var(--border); background: var(--panel); position: sticky; bottom: 0; }
+      .checkbox { display:flex; gap:8px; align-items:center; }
+      @media (max-width: 600px) {
+        .modal .panel { width: 95vw; max-height: 95vh; }
+        .row2 { grid-template-columns: 1fr; }
+      }
+    </style>
+    <div id="modalSettings" class="modal backdrop" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <div class="panel">
+        <header>
+          <h2 id="settingsTitle" style="font-size:14px; color: var(--link); margin:0;">Settings</h2>
+          <button id="btnCloseSettings" class="secondary" onclick="(function(){ var m=document.getElementById('modalSettings'); if(m) m.classList.remove('show'); })()">Close</button>
+        </header>
+        <main>
+          <div class="checkbox" title="Use smaller batches and periodic commits to limit memory usage; safer for large indexes.">
+            <input type="checkbox" id="optLowMem" checked />
+            <label for="optLowMem" class="label" title="Use smaller batches and periodic commits to limit memory usage; safer for large indexes.">Low-memory mode (safer on large builds)</label>
+          </div>
+          <div class="row2">
+            <div class="field">
+              <label class="label" for="optPostBatch" title="Max postings inserted per batch; lower values reduce peak RAM and transaction size.">Postings batch size</label>
+              <input id="optPostBatch" type="number" min="10000" step="5000" placeholder="100000" title="Max postings inserted per batch; lower values reduce peak RAM and transaction size." />
+            </div>
+            <div class="field">
+              <label class="label" for="optCommitPapers" title="Perform a DB commit every N papers to avoid huge transactions.">Commit every N papers</label>
+              <input id="optCommitPapers" type="number" min="10" step="10" placeholder="50" title="Perform a DB commit every N papers to avoid huge transactions." />
+            </div>
+          </div>
+          <div class="row2">
+            <div class="field">
+              <label class="label" for="optMode" title="Choose how to build: Index only (merge vectors) or Full (vectorize + index).">Build mode</label>
+              <select id="optMode" title="Choose how to build: Index only (merge vectors) or Full (vectorize + index).">
+                <option value="index-only">Index only (default)</option>
+                <option value="full">Full (vectorize + index)</option>
+                <option value="sharded">Sharded (advanced; better for very large datasets)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="label" for="optLimit" title="Process only this many papers; useful for testing.">Limit papers (debug)</label>
+              <input id="optLimit" type="number" min="1" placeholder="e.g. 500" title="Process only this many papers; useful for testing." />
+            </div>
+          </div>
+          <div class="row2">
+            <div class="field">
+              <label class="label" for="optShards" title="Number of shard databases to build and merge (advanced).">Shards (advanced)</label>
+              <input id="optShards" type="number" min="1" step="1" placeholder="4" title="Number of shard databases to build and merge (advanced)." />
+            </div>
+            <div class="field">
+              <label class="label" for="optShardWorkers" title="Parallel shard builders; set to CPU cores or slightly less.">Shard workers</label>
+              <input id="optShardWorkers" type="number" min="1" step="1" placeholder="4" title="Parallel shard builders; set to CPU cores or slightly less." />
+            </div>
+          </div>
+          <!-- Search options -->
+          <hr style="border:none; border-top:1px solid #1f2533; margin:6px 0;" />
+          <div class="row2">
+            <div class="field">
+              <label class="label" for="optSearchKind" title="Restrict results to paragraph, equation, or both.">Search: Kind filter</label>
+              <select id="optSearchKind" title="Restrict results to paragraph, equation, or both.">
+                <option value="both">Both</option>
+                <option value="paragraph">Paragraph</option>
+                <option value="equation">Equation</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="label" for="optSearchPerPaper" title="Max results per paper to show; prevents single papers from dominating.">Search: Per-paper cap</label>
+              <input id="optSearchPerPaper" type="number" min="1" placeholder="Unlimited" title="Max results per paper to show; prevents single papers from dominating." />
+            </div>
+          </div>
+          <div class="row2">
+            <div class="field">
+              <label class="label" for="optSearchMax" title="Upper bound on returned results; higher can be slower.">Search: Max results</label>
+              <input id="optSearchMax" type="number" min="1" placeholder="e.g. 5000 (default)" title="Upper bound on returned results; higher can be slower." />
+            </div>
+            <div class="field">
+              <label class="label" title="Defaults are tuned for responsiveness; increasing caps may slow down search.">Search behavior</label>
+              <div class="muted">Leave blank for defaults; raise for more results.</div>
+            </div>
+          </div>
+          <!-- Advanced Re-ranking (SVD/LSI) -->
+          <hr style="border:none; border-top:1px solid #1f2533; margin:6px 0;" />
+          <div class="checkbox" title="Re-rank top results using low-dimensional SVD (LSI) cosine.">
+            <input type="checkbox" id="optSvdEnable" />
+            <label for="optSvdEnable" class="label" title="Re-rank top results using low-dimensional SVD (LSI) cosine.">Re-rank with SVD (LSI)</label>
+          </div>
+          <div class="row2">
+            <div class="field">
+              <label class="label" for="optSvdTopN" title="Number of top TF–IDF results to re-rank with SVD.">SVD Top N</label>
+              <input id="optSvdTopN" type="number" min="100" step="100" placeholder="2000" title="Number of top TF–IDF results to re-rank with SVD." />
+            </div>
+            <div class="field">
+              <label class="label" for="optSvdAlpha" title="Blend weight: 1.0=TF–IDF only, 0.0=SVD only.">SVD Blend α</label>
+              <input id="optSvdAlpha" type="number" min="0" max="1" step="0.05" placeholder="0.5" title="Blend weight: 1.0=TF–IDF only, 0.0=SVD only." />
+            </div>
+          </div>
+          <!-- LLM settings -->
+          <div class="row2">
+            <div class="field">
+              <label class="label" for="optLlmModel" title="OpenAI model used for chat answers.">AI Model</label>
+              <select id="optLlmModel" title="OpenAI model used for chat answers.">
+                <option value="gpt-5">GPT‑5</option>
+                <option value="gpt-5-mini">GPT‑5 Mini</option>
+                <option value="gpt-4o">GPT‑4o</option>
+                <option value="gpt-4o-mini">GPT‑4o Mini</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="label" for="optOpenAIKey" title="Your OpenAI API key; stored locally in data/llm_settings.json.">OpenAI API Key</label>
+              <input id="optOpenAIKey" type="password" placeholder="sk-..." autocomplete="off" title="Your OpenAI API key; stored locally in data/llm_settings.json." />
+            </div>
+          </div>
+          <!-- Ask: Read papers options (vectors-only) -->
+          <hr style="border:none; border-top:1px solid #1f2533; margin:6px 0;" />
+          <div class="checkbox">
+            <input type="checkbox" id="optReadEnable" title="Enable reading from attached papers; session-only." />
+            <label for="optReadEnable" class="label" title="Enable reading from attached papers; session-only.">Ask: Read papers (vectors only)</label>
+          </div>
+          <div class="checkbox">
+            <input type="checkbox" id="optReadUseResults" title="Use the current search results as paper IDs when no attachments." />
+            <label for="optReadUseResults" class="label" title="Use the current search results as paper IDs when no attachments.">Use current search results (top K)</label>
+          </div>
+          <div class="checkbox">
+            <input type="checkbox" id="optReadFull" title="Prefer full LaTeX for attached papers, truncated to token budget." />
+            <label for="optReadFull" class="label" title="Prefer full LaTeX for attached papers, truncated to token budget.">Full paper mode (fit under budget)</label>
+          </div>
+          <div class="row2">
+            <div class="field">
+              <label class="label" for="optReadTopK" title="Number of top papers to include when using results.">Top K papers</label>
+              <input id="optReadTopK" type="number" min="1" step="1" placeholder="5" title="Number of top papers to include when using results." />
+            </div>
+            <div class="field">
+              <label class="label" for="optReadChunks" title="Max chunks per paper to read when not in full mode.">Chunks per paper</label>
+              <input id="optReadChunks" type="number" min="1" step="1" placeholder="5" title="Max chunks per paper to read when not in full mode." />
+            </div>
+          </div>
+          <div class="row2">
+            <div class="field">
+              <label class="label" for="optReadBudget" title="Approximate token budget for context; higher reads more text but can be slower/expensive.">Token budget (approx)</label>
+              <input id="optReadBudget" type="number" min="1000" step="500" placeholder="6000" title="Approximate token budget for context; higher reads more text but can be slower/expensive." />
+            </div>
+            <div class="field">
+              <div class="muted" title="Chat uses attached papers as context and cites sources in the answer.">Passes selected excerpts to the AI and requests citations.</div>
+            </div>
+          </div>
+        </main>
+        <div class="actions">
+          <button id="btnSaveSettings" class="secondary">Save Settings</button>
+          <button id="btnTestLlm" class="secondary" title="Test OpenAI connectivity">Test LLM</button>
+          <button id="btnStartBuild">Start Index Build</button>
+        </div>
+      </div>
+    </div>
+    <main>
+      <aside>
+        <div class="label">Database</div>
+        <div id="dbInfo" class="muted"></div>
+      </aside>
+      <section class="results">
+        <h3>Results</h3>
+        <ol id="results"></ol>
+      </section>
+    </main>
+    <script src="./app.js?v=7"></script>
+    <script>
+      (function(){
+        const dock = document.getElementById('llmDock');
+        const btnToggle = document.getElementById('btnLlmToggle');
+        const btnDebug = document.getElementById('btnLlmDebug');
+        const btnClear = document.getElementById('btnLlmClear');
+        const btnClose = document.getElementById('btnLlmClose');
+        const input = document.getElementById('llmInput');
+        const topQuery = document.getElementById('query');
+        const btnSend = document.getElementById('btnLlmSend');
+        const frame = document.getElementById('llmFrame');
+        const listEl = document.getElementById('llmList');
+        // Session (ephemeral)
+        let sessionId = null;
+        async function ensureSession(){
+          if (sessionId) return sessionId;
+          try{
+            const r = await fetch('/api/chat/start', { method:'POST' });
+            const j = await r.json();
+            if (j && j.ok && j.session_id) sessionId = j.session_id;
+          }catch(e){}
+          return sessionId;
+        }
+        // Read: options handled via Settings
+        function setMin(min){ dock.classList.toggle('min', !!min); btnToggle.textContent = min ? '▢' : '_'; }
+        btnToggle.addEventListener('click', ()=> setMin(!dock.classList.contains('min')));
+        btnClose.addEventListener('click', ()=> dock.style.display = 'none');
+
+        function postToIframe(msg){ try { frame.contentWindow && frame.contentWindow.postMessage(msg, '*'); } catch(e){} }
+        window.addEventListener('message', (ev)=>{ if(ev && ev.data && ev.data.type==='llm:ready'){ /* could update UI if needed */ } });
+
+        // Reading List (ephemeral, session-backed)
+        let reading = [];
+        async function loadReading(){
+          try{
+            await ensureSession();
+            if (!sessionId) { reading = []; renderReading(); return; }
+            const r = await fetch('/api/chat/state?session_id=' + encodeURIComponent(sessionId));
+            const j = await r.json();
+            reading = (j && j.ok && Array.isArray(j.papers)) ? j.papers.map(p=>String(p.id)) : [];
+          }catch(e){ reading = []; }
+          renderReading();
+        }
+        function saveReading(){ /* no-op: ephemeral */ }
+        function renderReading(){
+          if(!listEl) return;
+          listEl.innerHTML = '';
+          if(!reading.length){ const sp=document.createElement('span'); sp.className='hint'; sp.textContent='Drag results here or use Add'; listEl.appendChild(sp); return; }
+          reading.forEach((id)=>{
+            const chip = document.createElement('span'); chip.className='chip'; chip.setAttribute('data-id', id);
+            chip.innerHTML = `<span>${id}</span><button title="View raw context" data-act="view">View</button><button title="Remove" data-act="rem">×</button>`;
+            listEl.appendChild(chip);
+          });
+        }
+        async function addPaper(id){
+          id=String(id||'').trim(); if(!id) return;
+          await ensureSession(); if(!sessionId) return;
+          try{
+            const r = await fetch('/api/chat/add_paper', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ session_id: sessionId, paper_id: id, mode: 'latex' }) });
+            const j = await r.json();
+            if (j && j.ok){ if(reading.indexOf(id)===-1){ reading.push(id); renderReading(); } postToIframe({ type:'llm:add', role:'assistant', text:`Attached [${id}] (${j.chars||0} chars).`}); }
+            else { postToIframe({ type:'llm:add', role:'assistant', text:`Could not attach [${id}]: ${j.error||'error'}`}); }
+          }catch(e){ postToIframe({ type:'llm:add', role:'assistant', text:`Error attaching [${id}].`}); }
+        }
+        async function removePaper(id){
+          id=String(id||'').trim(); if(!id) return; await ensureSession(); if(!sessionId) return;
+          try{ await fetch('/api/chat/remove_paper', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ session_id: sessionId, paper_id: id }) }); }catch(e){}
+          const i=reading.indexOf(id); if(i>=0){ reading.splice(i,1); renderReading(); }
+        }
+        listEl && listEl.addEventListener('click', async (e)=>{ 
+          const t=e.target; 
+          if(!(t && t.getAttribute)) return; 
+          const act=t.getAttribute('data-act'); 
+          const p=t.closest('.chip'); if(!p) return; 
+          const pid=p.getAttribute('data-id'); 
+          if(act==='rem'){ removePaper(pid); return; }
+          if(act==='view'){
+            await ensureSession(); if(!sessionId) return;
+            try{
+              const r = await fetch('/api/chat/context?session_id=' + encodeURIComponent(sessionId));
+              const j = await r.json();
+              if (j && j.ok && Array.isArray(j.papers)){
+                const rec = j.papers.find(x => String(x.paper) === String(pid));
+                if (rec){
+                  postToIframe({ type:'llm:add', role:'assistant', text: `Raw context for [${pid}] — mode=${rec.mode||'unknown'} — chars=${rec.chars||0}` });
+                  const CH = 20000; const full = String(rec.full||'');
+                  for (let a=0;a<full.length;a+=CH){
+                    const part = full.slice(a,a+CH);
+                    postToIframe({ type:'llm:add', role:'assistant', text: '```latex\n'+part+'\n```' });
+                  }
+                }
+              }
+            }catch(err){ postToIframe({ type:'llm:add', role:'assistant', text: 'Failed to load raw context.'}); }
+          }
+        });
+        // Provide global helper for app.js "Add" buttons
+        window._psbAddPaper = addPaper;
+        loadReading();
+
+        // Drag-and-drop from Results
+        function onDragOver(ev){ ev.preventDefault(); dock.classList.add('dragover'); }
+        function onDragLeave(){ dock.classList.remove('dragover'); }
+        function onDrop(ev){ ev.preventDefault(); dock.classList.remove('dragover');
+          try{
+            const dt = ev.dataTransfer;
+            let pid = dt.getData('application/x-psb-paper-id') || dt.getData('text/plain') || '';
+            pid = (pid||'').trim();
+            if(pid) addPaper(pid);
+          }catch(e){}
+        }
+        dock.addEventListener('dragover', onDragOver);
+        dock.addEventListener('dragleave', onDragLeave);
+        dock.addEventListener('drop', onDrop);
+
+        let showContextDebug = false;
+        if (btnDebug) btnDebug.addEventListener('click', ()=>{ showContextDebug = !showContextDebug; btnDebug.textContent = showContextDebug ? 'Debug✓' : 'Debug'; });
+        async function send(){
+          const banner = document.getElementById('banner');
+          const q = ((input && input.value) || '').trim();
+          if(!q) return;
+          // Command: #add <id> [id...]
+          if (q.toLowerCase().startsWith('#add ')){
+            const parts = q.split(/\s+/).slice(1);
+            parts.forEach(id => { if(id) try{ addPaper(id); }catch(e){} });
+            input.value='';
+            return;
+          }
+          input.value='';
+          try{
+            if (banner) banner.textContent = 'Sending…';
+            postToIframe({ type:'llm:add', role:'user', text:q });
+            postToIframe({ type:'llm:loading', show:true, text:'Thinking' });
+            // Use chat sessions API
+            const raw = localStorage.getItem('PSB_READ_OPTS') || '{}';
+            let token_budget = 6000;
+            try{ const o = JSON.parse(raw); if (o && Number.isFinite(o.token_budget) && o.token_budget >= 1000) token_budget = o.token_budget; }catch(e){}
+            await ensureSession();
+            const r = await fetch('/api/chat/message', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ session_id: sessionId, text: q, token_budget }) });
+            const j = await r.json();
+            postToIframe({ type:'llm:loading', show:false });
+            if(!j.ok){
+              let msg = j.error || 'Ask failed.';
+              if (j.error === 'no_api_key') msg = 'No API key set. Open Settings and save your OpenAI API key.';
+              postToIframe({ type:'llm:add', role:'assistant', text: msg });
+              if (banner) banner.textContent = 'Ask failed';
+              return;
+            }
+            postToIframe({ type:'llm:add', role:'assistant', text: j.answer || '' });
+            if (j.offline && j.error){
+              postToIframe({ type:'llm:add', role:'assistant', text: 'LLM error (debug): ' + String(j.error).slice(0,800) });
+            }
+            try{
+              if (j.used && Array.isArray(j.used.papers) && j.used.papers.length) {
+                const text = 'Sources: ' + j.used.papers.map((id, i) => `[${i+1}] ${id}`).join('  ');
+                postToIframe({ type:'llm:add', role:'assistant', text });
+                // Full previews (debug): stream complete context in manageable chunks when debug is enabled
+                if (showContextDebug && Array.isArray(j.used.previews) && j.used.previews.length){
+                  const cu = Number(j.used.chars_used_total||0);
+                  const ct = Number(j.used.chars_total_attached||0);
+                  postToIframe({ type:'llm:add', role:'assistant', text: `Context (used ${cu}/${ct} chars across attachments)` });
+                  const CHUNK = 20000; // 20k chars per block to avoid DOM lockups
+                  j.used.previews.forEach((p,i)=>{
+                    const header = `[${i+1}] ${p.paper} — mode=${p.mode||'unknown'} — sent=${p.sent_chars||0}/${p.total_chars||0} ${p.truncated?'(truncated)':''}`;
+                    postToIframe({ type:'llm:add', role:'assistant', text: header });
+                    const full = String(p.full||p.head||'');
+                    for (let a=0;a<full.length;a+=CHUNK){
+                      const part = full.slice(a, a+CHUNK);
+                      postToIframe({ type:'llm:add', role:'assistant', text: '```latex\n'+part+'\n```' });
+                    }
+                  });
+                }
+              }
+            }catch(e){}
+            if (banner) banner.textContent = 'Done.';
+          }catch(e){ postToIframe({ type:'llm:loading', show:false }); postToIframe({ type:'llm:add', role:'assistant', text:'Error contacting server.' }); const b=document.getElementById('banner'); if (b) b.textContent='Error contacting server'; }
+        }
+        btnSend.addEventListener('click', send);
+        input.addEventListener('keydown', (e)=>{ if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='enter') send(); });
+        window._psbSend = send;
+        // Clear button → clear attachments
+        if (btnClear) btnClear.addEventListener('click', async ()=>{ await ensureSession(); if(!sessionId) return; try{ await fetch('/api/chat/clear', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ session_id: sessionId }) }); }catch(e){} reading = []; renderReading(); postToIframe({ type:'llm:add', role:'assistant', text:'Cleared attached papers.'}); });
+      })();
+    </script>
+    <script>
+      // LLM settings: load on open, save on click
+      (function(){
+        const modal = document.getElementById('modalSettings');
+        const btnSettings = document.getElementById('btnSettings');
+        const btnSave = document.getElementById('btnSaveSettings');
+        const btnTest = document.getElementById('btnTestLlm');
+        const modelSel = document.getElementById('optLlmModel');
+        const keyInput = document.getElementById('optOpenAIKey');
+        // Read options
+        const readEnable = document.getElementById('optReadEnable');
+        const readTopK = document.getElementById('optReadTopK');
+        const readChunks = document.getElementById('optReadChunks');
+        const readBudget = document.getElementById('optReadBudget');
+        const readUseResults = document.getElementById('optReadUseResults');
+        const readFull = document.getElementById('optReadFull');
+        const banner = document.getElementById('banner');
+        async function load(){
+          try{
+            const r = await fetch('/api/llm/settings');
+            const j = await r.json();
+            if(j && j.ok){ if(modelSel && j.model) modelSel.value = j.model; if(keyInput) keyInput.placeholder = j.has_key ? 'Saved (enter to replace)' : 'sk-...'; }
+          }catch(e){}
+          try{
+            const raw = localStorage.getItem('PSB_READ_OPTS') || '{}';
+            const o = JSON.parse(raw);
+            if (readEnable) readEnable.checked = !!o.enabled;
+            if (readTopK && Number.isFinite(o.top_k_papers)) readTopK.value = String(o.top_k_papers);
+            if (readChunks && Number.isFinite(o.chunks_per_paper)) readChunks.value = String(o.chunks_per_paper);
+            if (readBudget && Number.isFinite(o.token_budget)) readBudget.value = String(o.token_budget);
+            if (readUseResults) readUseResults.checked = (o.use_results !== undefined) ? !!o.use_results : true;
+            if (readFull) readFull.checked = !!o.full_paper;
+          } catch(e){}
+        }
+        async function save(){
+          try{
+            const payload = { provider:'openai', model: modelSel && modelSel.value };
+            const k = (keyInput && keyInput.value) || '';
+            if(k) payload.api_key = k;
+            const r = await fetch('/api/llm/settings', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+            const j = await r.json();
+            if(j && j.ok){ if(keyInput) keyInput.value=''; if(banner) banner.textContent='Settings saved'; }
+            else { if(banner) banner.textContent='Failed to save settings'; }
+          }catch(e){ if(banner) banner.textContent='Failed to save settings'; }
+          try{
+            const ro = {
+              enabled: !!(readEnable && readEnable.checked),
+              top_k_papers: readTopK && readTopK.value ? parseInt(readTopK.value,10) : null,
+              chunks_per_paper: readChunks && readChunks.value ? parseInt(readChunks.value,10) : null,
+              token_budget: readBudget && readBudget.value ? parseInt(readBudget.value,10) : null,
+              mode: 'vectors',
+              use_results: !!(readUseResults && readUseResults.checked),
+              full_paper: !!(readFull && readFull.checked)
+            };
+            localStorage.setItem('PSB_READ_OPTS', JSON.stringify(ro));
+          }catch(e){}
+        }
+        btnSettings && btnSettings.addEventListener('click', load);
+        btnSave && btnSave.addEventListener('click', save);
+        btnTest && btnTest.addEventListener('click', async () => {
+          const b = document.getElementById('banner');
+          try {
+            if (b) b.textContent = 'Testing LLM...';
+            const r = await fetch('/api/llm/test', { method: 'POST' });
+            const j = await r.json();
+            if (j && j.ok) { if (b) b.textContent = `LLM OK (model: ${j.model || ''})`; }
+            else { if (b) b.textContent = `LLM error: ${(j && (j.detail || j.error)) || 'unknown'}`; }
+          } catch(e) { if (b) b.textContent = 'LLM test failed'; }
+        });
+      })();
+    </script>
+    <script>
+      // Search settings (moved from sidebar) -> saved in localStorage
+      (function(){
+        const btnSettings = document.getElementById('btnSettings');
+        const btnSave = document.getElementById('btnSaveSettings');
+        const kindSel = document.getElementById('optSearchKind');
+        const perPaper = document.getElementById('optSearchPerPaper');
+        const maxRes = document.getElementById('optSearchMax');
+        const svdEnable = document.getElementById('optSvdEnable');
+        const svdTopN = document.getElementById('optSvdTopN');
+        const svdAlpha = document.getElementById('optSvdAlpha');
+        function load(){
+          try{
+            const raw = localStorage.getItem('PSB_SEARCH_OPTS') || '{}';
+            const o = JSON.parse(raw);
+            if(kindSel && o.kind) kindSel.value = o.kind;
+            if(perPaper && o.perPaper) perPaper.value = String(o.perPaper);
+            if(maxRes && o.maxResults) maxRes.value = String(o.maxResults);
+            if(svdEnable) svdEnable.checked = !!o.svdEnable;
+            if(svdTopN && o.svdTopN) svdTopN.value = String(o.svdTopN);
+            if(svdAlpha && (o.svdAlpha !== undefined)) svdAlpha.value = String(o.svdAlpha);
+          }catch(e){}
+        }
+        function save(){
+          try{
+            const o = {
+              kind: kindSel && kindSel.value || 'both',
+              perPaper: perPaper && perPaper.value ? parseInt(perPaper.value,10) : null,
+              maxResults: maxRes && maxRes.value ? parseInt(maxRes.value,10) : null,
+              svdEnable: !!(svdEnable && svdEnable.checked),
+              svdTopN: svdTopN && svdTopN.value ? parseInt(svdTopN.value,10) : null,
+              svdAlpha: svdAlpha && svdAlpha.value ? parseFloat(svdAlpha.value) : null,
+            };
+            localStorage.setItem('PSB_SEARCH_OPTS', JSON.stringify(o));
+          }catch(e){}
+        }
+        btnSettings && btnSettings.addEventListener('click', load);
+        btnSave && btnSave.addEventListener('click', save);
+      })();
+    </script>
+  </body>
+  </html>

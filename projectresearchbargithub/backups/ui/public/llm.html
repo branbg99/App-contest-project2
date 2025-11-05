@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- KaTeX -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css" />
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"></script>
+  <style>
+    :root{
+      color-scheme: dark;
+      --bg:#32302f;       /* soft */
+      --panel:#282828;
+      --panel-alt:#3c3836;
+      --text:#ebdbb2;
+      --muted:#bdae93;
+      --border:#504945;
+      --link:#83a598;
+      --accent:#fe8019;
+      --accent-text:#1d2021;
+    }
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);margin:0;padding:10px;line-height:1.6;min-height:100%;box-sizing:border-box;}
+    html,body{overflow-x:hidden;width:100%;}
+    .message{margin:14px 0;display:flex;gap:12px;max-width:100%;}
+    .avatar{width:30px;height:30px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:bold;flex-shrink:0;}
+    .user .avatar{background:#98971a;color:#1d2021;}
+    .assistant .avatar{background:#458588;color:#ebdbb2;}
+    .content{flex:1;max-width:calc(100% - 46px);min-width:0;}
+    .bubble{background:var(--panel);color:var(--text);display:block;width:100%;padding:10px 12px;border-radius:8px;white-space:pre-wrap;box-sizing:border-box;word-wrap:break-word;}
+    .user .bubble{background:var(--panel-alt);}    
+    #loading{margin:8px 0;padding:10px 12px;background:var(--panel);border:1px solid var(--border);border-radius:8px;}
+    a{color:var(--link);}
+  </style>
+</head>
+<body>
+  <div id="messages"></div>
+  <div id="loading" style="display:none;">
+    <div id="loading-text">Thinking</div>
+    <div id="loading-sub" class="dim"></div>
+  </div>
+
+  <!-- Use the standalone chat renderer bundle from the host app -->
+  <script src="./assets/chat-renderer-standalone.js"></script>
+  <script>
+    // Minimal math helper compatible with the renderer's expectations
+    function renderMathIn(node){
+      if(!node||typeof renderMathInElement!=='function'){setTimeout(()=>renderMathIn(node),25);return;}
+      try{
+        const macros = {
+          "\\RR": "\\mathbb{R}",
+          "\\ZZ": "\\mathbb{Z}",
+          "\\NN": "\\mathbb{N}",
+          "\\QQ": "\\mathbb{Q}",
+          "\\CC": "\\mathbb{C}",
+          "\\PP": "\\mathbb{P}",
+          "\\HH": "\\mathbb{H}",
+          "\\eps": "\\varepsilon",
+          "\\normalout": "\\mathrm{normal}_{\\mathrm{out}}",
+          "\\normalin": "\\mathrm{normal}_{\\mathrm{in}}",
+          "\\vol": "\\operatorname{vol}",
+          "\\dist": "\\operatorname{dist}",
+        };
+        renderMathInElement(node,{
+          delimiters:[
+            {left:'$$',right:'$$',display:true},
+            {left:'\\[',right:'\\]',display:true},
+            {left:'$',right:'$',display:false},
+            {left:'\\(',right:'\\)',display:false}
+          ],
+          throwOnError:false,
+          macros
+        });
+      }catch(e){}
+    }
+
+    // PostMessage bridge: receive instructions from parent
+    window.addEventListener('message', (ev) => {
+      const data = ev && ev.data || {};
+      try {
+        if (data.type === 'llm:add') {
+          // chatRenderer.addMessage internally typesets LaTeX within the new bubble
+          window.addMessage && window.addMessage(data.role || 'assistant', String(data.text || ''));
+        } else if (data.type === 'llm:update') {
+          // chatRenderer.updateStreamingMessage typesets on completion
+          window.updateStreamingMessage && window.updateStreamingMessage(data.role || 'assistant', String(data.text || ''), !!data.complete);
+        } else if (data.type === 'llm:clear') {
+          window.clearMessages && window.clearMessages();
+        } else if (data.type === 'llm:loading') {
+          if (window.showLoading) window.showLoading(!!data.show);
+          if (data.text && window.setLoadingText) window.setLoadingText(String(data.text));
+        }
+      } catch (e) {
+        console.warn('llm iframe message error', e);
+      }
+    });
+
+    // Notify parent that iframe UI is ready
+    try { parent && parent.postMessage({ type: 'llm:ready' }, '*'); } catch(e){}
+    // If KaTeX auto-render failed to load, show a subtle hint once
+    window.addEventListener('load', function(){
+      setTimeout(function(){
+        if (typeof renderMathInElement !== 'function') {
+          try {
+            const m = document.getElementById('messages');
+            const hint = document.createElement('div');
+            hint.className = 'message assistant';
+            hint.innerHTML = '<div class="avatar">AI</div><div class="content"><div class="bubble">Note: Math renderer not loaded. Check internet or bundle KaTeX locally.</div></div>';
+            m && m.appendChild(hint);
+          } catch(e){}
+        }
+      }, 600);
+    });
+  </script>
+</body>
+</html>

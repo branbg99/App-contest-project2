@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ProjectSearchBar — UI2 Chat</title>
+    <style>
+      :root { color-scheme: dark; --bg:#32302f; --panel:#282828; --panel-alt:#3c3836; --text:#ebdbb2; --muted:#bdae93; --border:#504945; --link:#83a598; --accent:#fe8019; --accent-text:#1d2021; }
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin:0; background:var(--bg); color:var(--text); }
+      header { position: sticky; top:0; background:var(--panel); border-bottom:1px solid var(--border); padding: 10px 12px; display:flex; gap:8px; align-items:center; }
+      h1 { margin:0; font-size:14px; color:var(--link); }
+      .row { display:flex; gap:8px; align-items:center; flex:1; }
+      input[type=text] { flex:1; padding:10px 12px; background:var(--panel-alt); color:var(--text); border:1px solid var(--border); border-radius:10px; }
+      button { padding:9px 12px; border:1px solid #d65d0e; background:#fe8019; color:#1d2021; border-radius:10px; cursor:pointer; }
+      main { padding: 12px; }
+      #messages { max-width: 1100px; margin: 0 auto; }
+      .muted { color:var(--muted); }
+      footer { position: sticky; bottom:0; background: rgba(40,40,40,0.95); border-top:1px solid var(--border); padding:10px 12px; display:flex; gap:8px; }
+      .small { font-size:12px; }
+      a { color:var(--link); text-decoration:none; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>ProjectSearchBar — Chat</h1>
+      <div class="row">
+        <input id="askInput" type="text" placeholder="Ask AI about papers (LaTeX ok)" />
+        <button id="btnAsk">Ask AI</button>
+        <span id="status" class="muted small"></span>
+      </div>
+    </header>
+    <main>
+      <div id="messages"></div>
+    </main>
+    <footer>
+      <div class="small muted">Results come from the TF–IDF index.</div>
+    </footer>
+    <script src="./assets/chat-renderer-standalone.js"></script>
+    <script>
+      // Minimal bridge to match original chat.html behavior
+      function renderMathIn(node){ try{ if(typeof renderMathInElement==='function'){ renderMathInElement(node,{ delimiters:[{left:'$$',right:'$$',display:true},{left:'\\[',right:'\\]',display:true},{left:'$',right:'$',display:false},{left:'\\(',right:'\\)',display:false}], throwOnError:false }); } }catch(e){} }
+    </script>
+  </body>
+</html>
+

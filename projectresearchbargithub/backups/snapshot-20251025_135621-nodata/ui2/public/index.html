@@ -1,0 +1,709 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ProjectSearchBar — UI2</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #32302f;
+        --bg-alt: #3c3836;
+        --panel: #282828;
+        --panel-alt: #3c3836;
+        --text: #ebdbb2;
+        --muted: #bdae93;
+        --border: #504945;
+        --link: #83a598;
+        --accent: #fe8019;
+        --accent-text: #1d2021;
+        --accent-border: #d65d0e;
+        --shadow: 0 10px 26px rgba(0,0,0,0.45);
+      }
+      :root { --chat-width: 480px; --chat-height: 65vh; }
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin:0; background:var(--bg); color:var(--text); }
+      header { padding: 12px 16px; border-bottom:1px solid var(--border); background:var(--panel); display:flex; align-items:center; justify-content:space-between; gap:12px; }
+      .left { display:flex; align-items:center; gap:10px; }
+      h1 { margin:0; font-size:14px; color:var(--link); letter-spacing: 0.2px; }
+      .meta { display:flex; gap:0; align-items:center; font-size:12px; color:var(--muted); }
+      .banner { padding:4px 10px; border:1px dashed var(--border); background:var(--panel); }
+
+      main { padding: 18px 14px; display:grid; grid-template-columns: 2.5fr 1fr; gap:14px; align-items:start; }
+      /* Centered mode (default) */
+      body.mode-center main { grid-template-columns: 1fr; }
+      body.mode-center .searchwrap { max-width: 1400px; width: min(92vw, 1400px); margin: 0 auto; }
+      body.mode-center .results { max-width: 1400px; width: min(92vw, 1400px); margin: 0 auto; }
+      body.mode-center .status { text-align:center; }
+      body.mode-center .terminal { display:none; }
+      body.mode-center .term-lip { display:flex; }
+      /* Split mode (terminal visible) */
+      body.mode-split main { grid-template-columns: 2.5fr 1fr; }
+      body.mode-split .term-lip { display:none; }
+
+      /* Artistic search bar */
+      .searchwrap { position: relative; max-width: none; margin: 0; }
+      .searchbar { display:flex; align-items:center; gap:10px; padding: 14px 14px; background: var(--panel);
+        border:1px solid var(--border); border-radius: 12px; box-shadow: 0 3px 18px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.02);
+        transition: box-shadow 220ms ease, border-color 220ms ease; }
+      .searchbar:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 65%, transparent), 0 10px 28px rgba(0,0,0,0.50); }
+      .searchbar input[type=text] { flex:1; padding: 14px 16px; background: var(--panel-alt); color: var(--text); border:1px solid var(--border); border-radius: 10px; outline: none; font-size: 18px;
+        transition: border-color 220ms ease, background 220ms ease; }
+      .searchbar input[type=text]::placeholder { color: color-mix(in srgb, var(--muted) 72%, transparent); }
+      .searchbar input[type=text]:focus { border-color: var(--accent); background: #3b3836; }
+      .btn { position: relative; padding: 10px 14px; border:1px solid var(--accent-border); background: var(--accent); color: var(--accent-text); border-radius: 10px; cursor: pointer; font-weight: 600; letter-spacing:.2px;
+        transition: transform 120ms ease, box-shadow 220ms ease; }
+      .btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(0,0,0,0.35); }
+      .btn:active { transform: translateY(0); }
+      .btn[disabled] { opacity:.65; cursor:default; }
+      .btn.secondary { background: var(--panel-alt); color: var(--text); border-color: var(--border); }
+      .btn[data-state="loading"] { color: transparent; }
+      .btn[data-state="loading"]::after { content:""; position:absolute; inset: 50% auto auto 50%; width: 18px; height: 18px; margin:-9px 0 0 -9px; border-radius:50%;
+        background: conic-gradient(var(--accent-text) 0 40%, transparent 40%);
+        -webkit-mask: radial-gradient(circle at 50% 50%, transparent 6px, #000 6px); mask: radial-gradient(circle at 50% 50%, transparent 6px, #000 6px);
+        animation: spin 1s linear infinite; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      /* Ambient ribbon */
+      .ribbon { position:absolute; left: 10px; right: 10px; bottom: -6px; height: 4px; border-radius: 4px; overflow:hidden; }
+      .ribbon > i { display:block; width:100%; height:100%; background: linear-gradient(90deg, var(--accent), var(--link)); filter: blur(0.4px); opacity:.75;
+        transform-origin: left center; animation: sway 6s ease-in-out infinite; }
+      @keyframes sway { 0%,100% { transform: scaleX(1.0); } 50% { transform: scaleX(1.04); } }
+
+      .status { grid-column: 1 / span 1; font-size:12px; color: var(--muted); }
+      .results { grid-column: 1 / span 1; }
+      /* Sort controls */
+      .sortbar { display:flex; align-items:center; gap:8px; margin: 6px 0 4px; color: var(--muted); font-size:12px; justify-content: flex-end; }
+      .sortbar .label { opacity: 0.9; }
+      .sortbtn { padding:2px 8px; border:1px solid var(--border); background: var(--panel-alt); color: var(--text); border-radius: 999px; cursor:pointer; font-size:12px; }
+      .sortbtn.active { border-color: var(--accent); color: var(--accent-text); background: var(--accent); }
+      .sortbtn.secondary { background: var(--panel); }
+      ol { padding-left: 20px; }
+      li.result { margin: 10px 0; padding: 12px; background: var(--bg-alt); border:1px solid var(--border); border-radius: 10px; }
+      .res-head { display:flex; align-items:center; gap:10px; }
+      .score { display:flex; align-items:center; gap:12px; margin-left:auto; flex-wrap: nowrap; }
+      .score .metric { display: inline-flex; align-items:center; gap:8px; white-space: nowrap; }
+      .score .score-bar { width: 120px; height: 6px; border:1px solid var(--border); background: var(--panel); border-radius:999px; overflow:hidden; }
+      .score .score-bar i { display:block; height:100%; background: linear-gradient(90deg, var(--accent), var(--link)); }
+      .score .score-num { font-size:12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .chip-subject { display:inline-block; padding:1px 6px; border:1px solid var(--border); border-radius:999px; font-size:11px; color: var(--muted); margin-left:6px; }
+      /* paste/length hints */
+      .hints { position:absolute; right: 8px; top: -12px; display:flex; gap:6px; }
+      .chip { display:inline-flex; align-items:center; gap:6px; padding:2px 8px; font-size:11px; color: var(--text); background: var(--panel); border:1px solid var(--border); border-radius:999px; opacity:.9; }
+      .chip .dot { width:8px; height:8px; border-radius:50%; background: var(--accent); display:inline-block; }
+      a { color: var(--link); text-decoration:none; }
+
+      /* Right column: Terminal panel */
+      .terminal { grid-column: 2 / span 1; background: var(--panel); border:1px solid var(--border); border-radius: 12px; box-shadow: 0 6px 18px rgba(0,0,0,0.28); overflow:hidden; }
+      .terminal .term-head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px; background: #1f1f1f44; border-bottom:1px solid var(--border); }
+      .terminal .term-title { font-size: 12px; color: var(--muted); display:flex; align-items:center; gap:8px; }
+      .toggle { padding:4px 8px; border:1px solid var(--border); background: var(--panel-alt); color: var(--text); border-radius: 6px; cursor:pointer; font-size:12px; }
+      .terminal .term-path { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:12px; color: var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .terminal .term-body { height: calc(100vh - 220px); min-height: 420px; overflow: auto; padding: 8px 10px; background: #1c1c1c33; }
+      .terminal .line { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:12px; color: var(--text); white-space:pre-wrap; }
+      .terminal .ts { color: var(--muted); margin-right: 6px; }
+      /* Right column: Paper Chat panel */
+      .paperchat { display:none; grid-column: 2 / span 1; background: var(--panel); border:1px solid var(--border); border-radius: 12px; box-shadow: 0 6px 18px rgba(0,0,0,0.28); overflow:hidden; }
+      .paperchat .head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px; background:#1f1f1f44; border-bottom:1px solid var(--border); }
+      .paperchat .title { font-size:12px; color: var(--muted); }
+      .paperchat .actions { display:flex; align-items:center; gap:8px; }
+      .paperchat .attach { display:flex; gap:6px; flex-wrap: wrap; padding:6px 10px; border-bottom:1px solid var(--border); background:#1f1f1f22; }
+      .paperchat .chip { display:inline-flex; align-items:center; gap:6px; padding:2px 8px; font-size:11px; color: var(--text); background: var(--panel); border:1px solid var(--border); border-radius:999px; }
+      .paperchat .chip button { border:1px solid var(--border); background: var(--panel-alt); color: var(--text); border-radius: 6px; padding:2px 6px; cursor:pointer; font-size:10px; }
+      .paperchat .body { height: var(--chat-height); min-height: 300px; position: relative; }
+      .paperchat .body iframe { position:absolute; inset:0; width:100%; height:100%; border:0; display:block; background:transparent; z-index:0; }
+      .paperchat .foot { display:flex; gap:8px; align-items:center; padding:8px 10px; border-top:1px solid var(--border); background: var(--panel); }
+      .paperchat .foot input { flex:1; padding:8px 10px; background: var(--panel-alt); color: var(--text); border:1px solid var(--border); border-radius:8px; }
+      .paperchat .foot button { padding:8px 12px; border:1px solid var(--accent-border); background: var(--accent); color: var(--accent-text); border-radius:8px; cursor:pointer; }
+      .paperchat { position: relative; }
+      /* Drag resizers removed in favor of an Enlarge/Restore button */
+      .paperchat .resizer-w { display:none; }
+      .paperchat .resizer-h { display:none; }
+      /* keep header/footer above iframe; resizers above all */
+      .paperchat .head { position: relative; z-index: 2; }
+      .paperchat .foot { position: relative; z-index: 2; }
+      .paperchat .body iframe { z-index: 1; }
+      /* Chat mode */
+      body.mode-chat main { grid-template-columns: minmax(420px, calc(100% - var(--chat-width))) var(--chat-width); }
+      body.mode-chat .terminal { display:none; }
+      body.mode-chat .paperchat { display:block; }
+      /* Terminal toggle in header meta */
+      .meta .toggle { margin-right: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: 0; }
+      .meta .banner { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="left">
+        <h1>ProjectSearchBar — UI2</h1>
+        <button id="btnSettings" class="btn secondary" title="Settings" onclick="(function(){ var m=document.getElementById('modalSettings'); if(m) m.classList.add('show'); })()">Settings</button>
+      </div>
+      <div class="meta"><button id="btnToggleTermTop" class="toggle" title="Toggle terminal">Terminal</button><div id="banner" class="banner">Ready</div><div id="dbInfo"></div><div id="llmStatus" class="banner" title="LLM connectivity">AI: unknown</div></div>
+    </header>
+    <main>
+      <div class="searchwrap">
+        <div class="searchbar" id="searchBar" aria-label="Search">
+          <input id="query" type="text" placeholder="Search arXiv… try $\\int_0^\\infty e^{-x^2} dx$" />
+          <button id="btnSearch" class="btn">Search</button>
+        </div>
+        <div class="ribbon" aria-hidden="true"><i></i></div>
+        <div class="hints" aria-hidden="true">
+          <span id="pasteHint" class="chip" style="display:none"><span class="dot"></span> Pasted <span id="pasteCount">0</span> chars</span>
+          <span id="lenHint" class="chip" style="display:none">Length <span id="lenCount">0</span></span>
+        </div>
+      </div>
+      <div class="status"><span id="status"></span> <button id="btnCopyStatus" class="toggle" title="Copy status text">Copy</button></div>
+      <section class="results">
+        <div class="sortbar" aria-label="Sort results">
+          <span class="label">Sort:</span>
+          <button id="btnSortCos" class="sortbtn" data-dir="desc" title="Sort by cosine">cos ▲</button>
+          <button id="btnSortBm25" class="sortbtn" data-dir="desc" title="Sort by BM25">bm25 ▲</button>
+          <button id="btnSortReset" class="sortbtn secondary" title="Original order">reset</button>
+        </div>
+        <ol id="results"></ol>
+      </section>
+      <aside class="paperchat" id="paperChat" aria-label="Paper AI chat">
+        <div class="head">
+          <div class="title">AI — <span id="paperChatTitle"></span></div>
+          <div class="actions">
+            <button id="btnChatDebug" class="toggle" title="Toggle debug">Debug</button>
+            <button id="btnChatRetry" class="toggle" title="Retry last message" disabled>Retry</button>
+            <button id="btnChatClear" class="toggle" title="Clear attachments">Clear</button>
+            <button id="btnTogglePaperChatSize" class="toggle" title="Enlarge chat">Enlarge</button>
+            <button id="btnClosePaperChat" class="toggle" title="Close chat">Close</button>
+          </div>
+        </div>
+        <div class="attach" id="paperChatAttach" aria-label="Attached papers"></div>
+        <div class="body"><iframe id="paperChatFrame" src="./llm.html" title="Paper Chat"></iframe></div>
+        <div class="foot">
+          <input id="paperChatInput" type="text" placeholder="Ask about this paper (Ctrl/Cmd+Enter to send)" />
+          <button id="btnPaperChatSend">Send</button>
+        </div>
+      </aside>
+      <aside class="terminal" aria-label="Diagnostics terminal">
+        <div class="term-head">
+          <div class="term-title"><button id="btnToggleTermHead" class="toggle" title="Hide terminal">Terminal</button> DB</div>
+          <div id="termPath" class="term-path" title="Database path">DB: …</div>
+        </div>
+        <div id="termBody" class="term-body" role="log" aria-live="polite" aria-atomic="false"></div>
+      </aside>
+    </main>
+
+    <!-- Reuse existing app logic (served via fallback if not present here) -->
+    <!-- moved to bottom so modal elements exist when handlers bind -->
+    <script>
+      (function(){
+        const input = document.getElementById('query');
+        const btn = document.getElementById('btnSearch');
+        const bar = document.getElementById('searchBar');
+        const ribbon = document.querySelector('.ribbon > i');
+        const pasteHint = document.getElementById('pasteHint');
+        const pasteCount = document.getElementById('pasteCount');
+        const lenHint = document.getElementById('lenHint');
+        const lenCount = document.getElementById('lenCount');
+        const placeholders = [
+          'Search arXiv… try $x^2 + y^2$',
+          'LaTeX ok: $\\nabla \\cdot \\vec{E} = \\rho/\\epsilon_0$',
+          'Phrases: "convex optimization" sparse recovery'
+        ];
+        let pi = 0; let rot;
+        function rotate(){ if(document.activeElement===input) return; input.setAttribute('placeholder', placeholders[pi%placeholders.length]); pi++; rot = setTimeout(rotate, 6000); }
+        rotate();
+        input.addEventListener('focus', () => { if(rot) clearTimeout(rot); });
+        input.addEventListener('blur', () => { if(rot) clearTimeout(rot); rot = setTimeout(rotate, 2000); });
+        input.addEventListener('paste', (ev) => {
+          try {
+            const t = (ev.clipboardData && ev.clipboardData.getData('text')) || '';
+            if (t && t.length > 80) {
+              if (pasteCount) pasteCount.textContent = String(t.length);
+              if (pasteHint) { pasteHint.style.display = 'inline-flex'; clearTimeout(pasteHint._t); pasteHint._t = setTimeout(()=>{ pasteHint.style.display='none'; }, 4000); }
+            }
+          } catch(e){}
+        });
+        function syncLen(){ const n = (input && input.value || '').length; if (n > 160) { if(lenCount) lenCount.textContent = String(n); if(lenHint) lenHint.style.display='inline-flex'; } else { if(lenHint) lenHint.style.display='none'; } }
+        input.addEventListener('input', syncLen); syncLen();
+        // Loading state ties to disabled flag toggled by app.js
+        const obs = new MutationObserver(() => { if(!btn) return; btn.setAttribute('data-state', btn.disabled ? 'loading' : ''); });
+        obs.observe(btn, { attributes: true, attributeFilter: ['disabled'] });
+        // Ribbon reacts to typing speed
+        let last = 0; input.addEventListener('input', () => {
+          const now = Date.now(); const dt = Math.max(1, now - last); last = now;
+          const scale = Math.max(1.0, Math.min(1.15, 30/dt));
+          if (ribbon) { ribbon.style.transform = 'scaleX(' + scale.toFixed(3) + ')'; clearTimeout(ribbon._t); ribbon._t = setTimeout(()=>{ ribbon.style.transform = ''; }, 220); }
+          if (bar) { bar.style.boxShadow = '0 0 0 2px color-mix(in srgb, var(--accent) 65%, transparent), 0 16px 38px rgba(0,0,0,0.5)'; clearTimeout(bar._t); bar._t = setTimeout(()=>{ bar.style.boxShadow=''; }, 260); }
+        });
+      })();
+    </script>
+    <script>
+      // Paper Chat: open per-paper ephemeral chat using existing LLM endpoints
+      (function(){
+        let chatSessionId = null;
+        const paperChat = document.getElementById('paperChat');
+        const chatFrame = document.getElementById('paperChatFrame');
+        const chatTitle = document.getElementById('paperChatTitle');
+        const btnClose = document.getElementById('btnClosePaperChat');
+        const btnDebug = document.getElementById('btnChatDebug');
+        const btnRetry = document.getElementById('btnChatRetry');
+        const btnClear = document.getElementById('btnChatClear');
+        const attachEl = document.getElementById('paperChatAttach');
+        const llmStatus = document.getElementById('llmStatus');
+        const chatInput = document.getElementById('paperChatInput');
+        const btnSend = document.getElementById('btnPaperChatSend');
+        let iframeReady = false;
+        const msgQueue = [];
+        const btnToggleSize = document.getElementById('btnTogglePaperChatSize');
+        const rootStyle = document.documentElement.style;
+        function setModeChat(show){ document.body.classList.toggle('mode-chat', !!show); document.body.classList.toggle('mode-center', !show); }
+        let debugMode = false;
+        let _lastQuestion = '';
+        let _autoRetryPending = false;
+        function setLlmStatus(state, detail){ try{ if(!llmStatus) return; llmStatus.textContent = state ? `AI: ${state}` : 'AI: unknown'; llmStatus.title = detail? String(detail): ''; }catch(e){} }
+        async function testLlm(){ try{ const r=await fetch('/api/llm/test', { method:'POST' }); const j=await r.json(); if(j&&j.ok){ setLlmStatus('online', `model: ${j.model||''}`); } else { setLlmStatus('offline', String((j&&(j.detail||j.error))||'error')); } }catch(e){ setLlmStatus('offline', String(e)); } }
+        async function ensureSession(){ if (chatSessionId) return chatSessionId; try{ const r=await fetch('/api/chat/start', { method:'POST' }); const j=await r.json(); if(j&&j.ok) chatSessionId=j.session_id||null; }catch(e){} return chatSessionId; }
+        function flushQueue(){ while(msgQueue.length){ const m=msgQueue.shift(); try{ chatFrame && chatFrame.contentWindow && chatFrame.contentWindow.postMessage(m, '*'); }catch(e){} } }
+        function postToIframe(msg){ if(!iframeReady){ msgQueue.push(msg); return; } try{ chatFrame && chatFrame.contentWindow && chatFrame.contentWindow.postMessage(msg, '*'); }catch(e){} }
+        window.addEventListener('message', (ev)=>{ try{ const d=ev && ev.data; if(d && d.type==='llm:ready'){ iframeReady = true; flushQueue(); } }catch(e){} });
+        async function addPaper(pid){ try{ const sid = await ensureSession(); if(!sid) return null; const r=await fetch('/api/chat/add_paper', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ session_id: sid, paper_id: pid, mode:'auto' }) }); const j=await r.json(); try{ await refreshAttach(); }catch(e){} return j; }catch(e){ return null; } }
+        async function refreshAttach(){
+          try{
+            const sid = await ensureSession();
+            if(!sid||!attachEl) return;
+            const r=await fetch('/api/chat/state?session_id='+encodeURIComponent(sid));
+            const j=await r.json();
+            if(!(j&&j.ok)) return;
+            const papers = Array.isArray(j.papers)? j.papers: [];
+            attachEl.innerHTML='';
+            papers.forEach(p => {
+              const id = p && (p.id||p.paper_id||p);
+              const mode = (p&&p.mode)?String(p.mode):'';
+              const chip = document.createElement('span');
+              chip.className='chip';
+              const modeTag = mode?` <span class="muted">(${mode})</span>`:'';
+              chip.innerHTML = `<span class="muted">${id}</span>${modeTag} <button data-view="${id}" title="View">View</button> <button data-remove="${id}" title="Remove">×</button>`;
+              attachEl.appendChild(chip);
+            });
+          }catch(e){}
+        }
+        async function viewAttach(){
+          try{
+            const sid = await ensureSession(); if(!sid) return;
+            // Fetch full context without limit; chunk client-side for rendering
+            const r=await fetch('/api/chat/context?session_id='+encodeURIComponent(sid));
+            const j=await r.json(); if(!(j&&j.ok)) return;
+            const blocks = j.papers || [];
+            const CHUNK = 50000; // chars per chunk to avoid UI stalls
+            blocks.forEach(b => {
+              const pid = b && (b.paper||b.id||'');
+              const mode = (b && b.mode) ? String(b.mode) : '';
+              const full = String((b && (b.full||b.head||b.preview||''))||'');
+              if (!full) return;
+              const parts = Math.max(1, Math.ceil(full.length / CHUNK));
+              for (let i=0;i<parts;i++){
+                const seg = full.slice(i*CHUNK, (i+1)*CHUNK);
+                const header = `[Context ${pid}${mode?` (${mode})`:''}${parts>1?` — part ${i+1}/${parts}`:''}]\n`;
+                try{ postToIframe({ type:'llm:add', role:'assistant', text: "```latex\n" + header + seg + "\n```" }); }catch(e){}
+              }
+            });
+          }catch(e){}
+        }
+        async function removeAttach(pid){ try{ const sid = await ensureSession(); if(!sid) return; await fetch('/api/chat/remove_paper', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ session_id: sid, paper_id: pid }) }); await refreshAttach(); }catch(e){} }
+        async function clearAttach(){ try{ const sid = await ensureSession(); if(!sid) return; await fetch('/api/chat/clear', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ session_id: sid }) }); await refreshAttach(); postToIframe({ type:'llm:add', role:'assistant', text:'Cleared attachments.'}); }catch(e){} }
+        // Chat size presets and toggle
+        const CHAT_DEFAULT_W = '480px';
+        const CHAT_DEFAULT_H = '65vh';
+        const CHAT_LARGE_W = '720px';
+        const CHAT_LARGE_H = '85vh';
+        let chatEnlarged = false;
+        function applyChatSize(){
+          try {
+            rootStyle.setProperty('--chat-width', chatEnlarged ? CHAT_LARGE_W : CHAT_DEFAULT_W);
+            rootStyle.setProperty('--chat-height', chatEnlarged ? CHAT_LARGE_H : CHAT_DEFAULT_H);
+            if (btnToggleSize) {
+              btnToggleSize.textContent = chatEnlarged ? 'Restore' : 'Enlarge';
+              btnToggleSize.title = chatEnlarged ? 'Restore chat size' : 'Enlarge chat';
+            }
+          } catch(e){}
+        }
+        function resetChatSize(){ chatEnlarged = false; applyChatSize(); }
+
+        async function openPaperChat(pid){
+          try{
+            // Reset to default size on open (no persistence)
+            resetChatSize();
+            if(chatTitle) chatTitle.textContent = pid;
+            setModeChat(true);
+            postToIframe({ type:'llm:clear' });
+            postToIframe({ type:'llm:add', role:'assistant', text:`Loading context for [${pid}]…`});
+            // Always start a fresh chat session for this paper (do not accumulate attachments)
+            try{
+              const rs = await fetch('/api/chat/start', { method:'POST' });
+              const js = await rs.json();
+              if (js && js.ok && js.session_id) {
+                chatSessionId = js.session_id;
+              } else {
+                // Fallback: ensure we at least have a session
+                await ensureSession();
+              }
+              // Refresh attachment chips to reflect the new empty session
+              try{ await refreshAttach(); }catch(e){}
+            }catch(e){ await ensureSession(); }
+            const addRes = await addPaper(pid);
+            if (addRes && addRes.ok){
+              const mode = String(addRes.mode||'latex');
+              const ch = (typeof addRes.chars==='number') ? addRes.chars : null;
+              const chTxt = ch!=null ? `, ${ch.toLocaleString()} chars` : '';
+              if (mode.toLowerCase()==='latex'){
+                postToIframe({ type:'llm:add', role:'assistant', text:`Loaded [${pid}] from LaTeX source${chTxt}. Ask about this paper.`});
+              } else {
+                postToIframe({ type:'llm:add', role:'assistant', text:`Loaded [${pid}] (fallback to indexed chunks${chTxt}). Ask about this paper.`});
+              }
+            } else {
+              postToIframe({ type:'llm:add', role:'assistant', text:`Could not load [${pid}] context.`});
+            }
+            try{ chatInput && chatInput.focus(); }catch(e){}
+          }catch(e){ setModeChat(true); }
+        }
+        async function sendChat(textOverride){
+          try{
+            const sid = await ensureSession();
+            const q = (typeof textOverride==='string' && textOverride.length>0) ? textOverride : ((chatInput && chatInput.value) || '').trim();
+            if(!sid || !q) return;
+            _lastQuestion = q;
+            postToIframe({ type:'llm:add', role:'user', text:q });
+            postToIframe({ type:'llm:typing_start' });
+            if (btnSend) btnSend.disabled = true;
+            // Clear input immediately for snappy UX; final clear also in finally
+            try{ if (chatInput) chatInput.value = ''; }catch(e){}
+            const r = await fetch('/api/chat/message', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ session_id: sid, text: q }) });
+            const j = await r.json();
+            if (j && j.ok){
+              // Simulate token streaming into typing bubble
+              try{
+                const ans = String(j.answer||'');
+                let i=0; const step=Math.max(2, Math.floor(ans.length/80));
+                while(i<ans.length){ const chunk = ans.slice(i, i+step); postToIframe({ type:'llm:typing_chunk', text: chunk }); i += step; await new Promise(res=>setTimeout(res, 18)); }
+              }catch(e){}
+              postToIframe({ type:'llm:typing_end' });
+              if (btnRetry) btnRetry.disabled = true;
+              setLlmStatus('online');
+              _autoRetryPending = false;
+            }
+            else {
+              postToIframe({ type:'llm:typing_end' });
+              postToIframe({ type:'llm:add', role:'assistant', text: 'LLM error: ' + String((j && (j.detail||j.error)) || 'unknown') });
+              if (btnRetry) btnRetry.disabled=false;
+              setLlmStatus('offline', (j&&j.detail)||j&&j.error||'');
+              if (!_autoRetryPending && _lastQuestion) {
+                _autoRetryPending = true;
+                setTimeout(()=>{ try{ sendChat(_lastQuestion); }catch(e){} }, 1200);
+              }
+            }
+          } catch(e){
+            postToIframe({ type:'llm:typing_end' });
+            postToIframe({ type:'llm:add', role:'assistant', text:'Error contacting server.'});
+            if (btnRetry) btnRetry.disabled=false;
+            setLlmStatus('offline', String(e));
+            if (!_autoRetryPending && _lastQuestion) {
+              _autoRetryPending = true;
+              setTimeout(()=>{ try{ sendChat(_lastQuestion); }catch(_){} }, 1200);
+            }
+          }
+          finally { if (btnSend) btnSend.disabled = false; if (chatInput) chatInput.value=''; }
+        }
+        function closeChat(){ setModeChat(false); try{ chatSessionId=null; }catch(e){} }
+        btnClose && btnClose.addEventListener('click', closeChat);
+        btnSend && btnSend.addEventListener('click', sendChat);
+        chatInput && chatInput.addEventListener('keydown', (e)=>{
+          const key = e.key.toLowerCase();
+          if ((e.ctrlKey||e.metaKey) && key==='enter') { e.preventDefault(); sendChat(); return; }
+          if (key==='enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); sendChat(); return; }
+        });
+        window._psbOpenPaperChat = openPaperChat;
+        // Optional: Esc to close
+        window.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeChat(); });
+        // Enlarge/Restore toggle
+        if (btnToggleSize && !btnToggleSize._psbBound) {
+          btnToggleSize._psbBound = true;
+          btnToggleSize.addEventListener('click', () => { chatEnlarged = !chatEnlarged; applyChatSize(); });
+        }
+        if (btnDebug && !btnDebug._psbBound) { btnDebug._psbBound = true; btnDebug.addEventListener('click', ()=>{ debugMode = !debugMode; btnDebug.textContent = debugMode ? 'Debug ✓' : 'Debug'; }); }
+        if (btnRetry && !btnRetry._psbBound) { btnRetry._psbBound = true; btnRetry.addEventListener('click', ()=>{ if(_lastQuestion) sendChat(_lastQuestion); }); }
+        // Check LLM status when opening chat
+        try{ testLlm(); }catch(e){}
+        if (btnClear && !btnClear._psbBound) { btnClear._psbBound = true; btnClear.addEventListener('click', ()=>{ clearAttach(); }); }
+        if (attachEl && !attachEl._psbBound) { attachEl._psbBound = true; attachEl.addEventListener('click', (e)=>{
+          const t = e.target; if (!t || !t.getAttribute) return;
+          const v = t.getAttribute('data-view'); if (v) { e.preventDefault(); viewAttach(); return; }
+          const rm = t.getAttribute('data-remove'); if (rm) { e.preventDefault(); removeAttach(rm); return; }
+        }); }
+      })();
+    </script>
+    <script>
+      // Terminal: mirror DB path and append logs; toggle layout
+      (function(){
+        const termPath = document.getElementById('termPath');
+        const termBody = document.getElementById('termBody');
+        const banner = document.getElementById('banner');
+        const dbInfo = document.getElementById('dbInfo');
+        const btnTop = document.getElementById('btnToggleTermTop');
+        const btnHead = document.getElementById('btnToggleTermHead');
+        function setMode(split){ document.body.classList.toggle('mode-split', !!split); document.body.classList.toggle('mode-center', !split); try{ localStorage.setItem('PSB_UI2_TERM', split? '1':'0'); }catch(e){} }
+        try{ const saved = localStorage.getItem('PSB_UI2_TERM'); setMode(saved === '1'); }catch(e){ setMode(false); }
+        function toggle(){ const isSplit = document.body.classList.contains('mode-split'); setMode(!isSplit); }
+        if (btnTop) btnTop.addEventListener('click', toggle);
+        if (btnHead) btnHead.addEventListener('click', toggle);
+        function log(msg){ if(!termBody) return; const d=document.createElement('div'); d.className='line'; const ts=document.createElement('span'); ts.className='ts'; ts.textContent = new Date().toLocaleTimeString(); const content=document.createElement('span'); content.textContent = msg; d.appendChild(ts); d.appendChild(content); termBody.appendChild(d); termBody.scrollTop = termBody.scrollHeight; }
+        if (banner) { const o = new MutationObserver(()=>{ const txt = banner.textContent || ''; if(termPath) termPath.textContent = txt; if(txt) log(String(txt)); }); o.observe(banner, { childList:true, characterData:true, subtree:true }); const init = banner.textContent || ''; if(termPath) termPath.textContent = init; }
+        if (dbInfo) { const o2 = new MutationObserver(()=>{ if(dbInfo.textContent) log(String(dbInfo.textContent)); }); o2.observe(dbInfo, { childList:true, characterData:true, subtree:true }); if(dbInfo.textContent) log(String(dbInfo.textContent)); }
+        log('UI2 ready');
+      })();
+    </script>
+    <!-- Settings modal (ported from UI1, styled to Gruvbox) -->
+    <style>
+      .modal.backdrop { position: fixed; inset:0; background: rgba(0,0,0,0.6); display:none; align-items:flex-start; justify-content:center; z-index: 2000; padding: 10px; overflow-y:auto; }
+      .modal.backdrop.show { display:flex; }
+      .modal .panel { width: 520px; max-width: 95vw; max-height: 95vh; background: var(--panel); border:1px solid var(--border); border-radius:8px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); display:flex; flex-direction:column; overflow:hidden; margin: 14px auto; }
+      .modal .panel header { display:flex; align-items:center; justify-content:space-between; padding:8px 10px; border-bottom:1px solid var(--border); }
+      .modal .panel main { padding: 10px; display:flex; flex-direction:column; gap: 12px; overflow-y:auto; -webkit-overflow-scrolling: touch; flex: 1 1 auto; min-height: 0; overscroll-behavior: contain; scrollbar-width: thin; }
+      .row2 { display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      .field { display:flex; flex-direction:column; gap:6px; }
+      .field input, .field select { padding: 7px 8px; background: var(--panel-alt); color: var(--text); border:1px solid var(--border); border-radius:6px; }
+      .actions { display:flex; gap: 8px; justify-content:flex-end; padding: 8px 10px; border-top: 1px solid var(--border); background: var(--panel); }
+      .label { font-size:12px; color: var(--muted); }
+      .section { border:1px solid var(--border); border-radius:8px; padding:10px; background: var(--bg-alt); }
+      .section h3 { margin:0 0 8px 0; font-size:13px; color: var(--link); }
+      .section .hint { font-size:12px; color: var(--muted); margin: 4px 0 8px; }
+      .checkbox { display:flex; gap:8px; align-items:center; }
+      @media (max-width: 600px) { .modal .panel { width: 95vw; max-height: 95vh; } .row2 { grid-template-columns: 1fr; } }
+    </style>
+    <div id="modalSettings" class="modal backdrop" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <div class="panel">
+        <header>
+          <h2 id="settingsTitle" style="font-size:14px; color: var(--link); margin:0;">Settings</h2>
+          <div style="display:flex; gap:8px;">
+            <button id="btnSaveSettings" class="btn" title="Save all settings to server (persist across restarts)">Save</button>
+            <button id="btnCloseSettings" class="btn secondary" onclick="(function(){ var m=document.getElementById('modalSettings'); if(m) m.classList.remove('show'); })()">Close</button>
+          </div>
+        </header>
+        <main>
+          <div class="section" id="sec-llm">
+            <h3>AI Settings</h3>
+            <div class="hint">Select a model and manage your API key (stored locally).</div>
+            <div class="row2">
+              <div class="field">
+                <label class="label" for="optLlmModel">AI Model</label>
+                <select id="optLlmModel" title="OpenAI model used for chat answers">
+                  <option value="gpt-5">GPT‑5</option>
+                  <option value="gpt-5-mini">GPT‑5 Mini</option>
+                  <option value="gpt-4o">GPT‑4o</option>
+                  <option value="gpt-4o-mini">GPT‑4o Mini</option>
+                </select>
+              </div>
+              <div class="field">
+                <label class="label" for="optOpenAIKey" title="Your OpenAI API key; stored locally in data/llm_settings.json">OpenAI API Key</label>
+                <input id="optOpenAIKey" type="password" placeholder="sk-..." autocomplete="off" title="Your OpenAI API key; stored locally in data/llm_settings.json" />
+              </div>
+            </div>
+            <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:6px;">
+              <button id="btnTestLlm" class="btn secondary" title="Test AI connectivity">Test LLM</button>
+            </div>
+          </div>
+
+          <div class="section" id="sec-search">
+            <h3>Search Settings</h3>
+            <div class="row2">
+              <div class="field">
+                <label class="label" for="optSearchKind" title="Restrict results to paragraphs, equations, or both; this filters result types only (does not affect scoring)">Kind filter</label>
+                <select id="optSearchKind" title="Restrict results to paragraphs, equations, or both; this filters result types only (does not affect scoring)">
+                  <option value="both">Both</option>
+                  <option value="paragraph">Paragraph</option>
+                  <option value="equation">Equation</option>
+                </select>
+              </div>
+              <div class="field">
+                <label class="label" for="optSearchPerPaper" title="Limit how many results are shown per paper; prevents a single paper from dominating the list (does not change scores)">Per‑paper cap</label>
+                <input id="optSearchPerPaper" type="number" min="1" placeholder="Unlimited" title="Limit how many results are shown per paper; prevents a single paper from dominating the list (does not change scores)" />
+              </div>
+            </div>
+            <div class="row2">
+              <div class="field">
+                <label class="label" for="optScoring" title="Primary ranking metric: TF–IDF (cosine) or BM25. Both scores are always displayed; this only controls ordering. Tip: BM25 tends to recall more lexical matches; cosine normalizes by length. Ignored when Two‑pass is enabled.">Scoring</label>
+                <select id="optScoring" title="Primary ranking metric: TF–IDF (cosine) or BM25. Both scores are always displayed; this only controls ordering. Tip: BM25 tends to recall more lexical matches; cosine normalizes by length. Ignored when Two‑pass is enabled.">
+                  <option value="tfidf">TF–IDF (cosine)</option>
+                  <option value="bm25">BM25</option>
+                </select>
+              </div>
+              <div class="field">
+                <label class="label" title="BM25 parameters (used when BM25 ranks results): k1 controls term frequency saturation; b controls length normalization (0=no length penalty, 1=full). Typical: k1≈1.2–2.0, b≈0.6–0.8.">BM25 (k1, b)</label>
+                <div style="display:flex; gap:8px;">
+                  <input id="optBm25K1" type="number" step="0.1" min="0" placeholder="1.2" title="k1: increases the impact of repeated terms; higher = stronger TF saturation (diminishing returns slower)" />
+                  <input id="optBm25B" type="number" step="0.05" min="0" max="1" placeholder="0.75" title="b: length normalization. 0=no length penalty (long chunks favored), 1=full normalization (long chunks penalized more)" />
+                </div>
+              </div>
+            </div>
+            <div class="row2">
+              <div class="field">
+                <label class="label" for="optSearchMax" title="Maximum results to return. Higher values can increase latency and memory use.">Max results</label>
+                <input id="optSearchMax" type="number" min="1" placeholder="e.g. 5000 (default)" title="Maximum results to return. Higher values can increase latency and memory use." />
+              </div>
+              <div class="field">
+                <label class="label" title="Re‑rank top TF–IDF candidates using latent semantic similarity (LSI via TruncatedSVD). Reduces vocabulary mismatch; requires data/svd assets.">Re‑ranking (SVD/LSI)</label>
+                <div class="checkbox"><input type="checkbox" id="optSvdEnable" title="Enable SVD/LSI re‑ranking of the top N TF–IDF results using cosine in latent space" /> <label class="label" for="optSvdEnable" title="Enable SVD/LSI re‑ranking of the top N TF–IDF results using cosine in latent space">Enable SVD re‑rank</label></div>
+              </div>
+            </div>
+            <div class="row2">
+              <div class="field">
+                <label class="label" title="Two‑pass ranking: gather candidates by BM25 (lexical recall), then re‑rank the top N by cosine (normalized similarity). Often yields stronger head quality.">Two‑pass re‑rank</label>
+                <div class="checkbox"><input type="checkbox" id="optTwoPassEnable" title="Enable two‑pass ranking: BM25 candidates → cosine re‑rank for the top N" /> <label class="label" for="optTwoPassEnable" title="Enable two‑pass ranking: BM25 candidates → cosine re‑rank for the top N">BM25 → Cosine</label></div>
+              </div>
+              <div class="field">
+                <label class="label" for="optTwoPassTopN" title="How many top BM25 candidates to re‑rank by cosine; 1000–5000 typical. Larger improves quality at higher cost.">Two‑pass Top N</label>
+                <input id="optTwoPassTopN" type="number" min="100" step="100" placeholder="2000" title="How many top BM25 candidates to re‑rank by cosine; 1000–5000 typical. Larger improves quality at higher cost." />
+              </div>
+            </div>
+            <div class="row2">
+              <div class="field">
+                <label class="label" for="optSvdTopN" title="How many top TF–IDF results to re‑rank with SVD; larger captures broader semantics at added cost.">SVD Top N</label>
+                <input id="optSvdTopN" type="number" min="100" step="100" placeholder="2000" title="How many top TF–IDF results to re‑rank with SVD; larger captures broader semantics at added cost." />
+              </div>
+              <div class="field">
+                <label class="label" for="optSvdAlpha" title="Blend between TF–IDF and SVD cosine: 1.0 = TF–IDF only, 0.0 = SVD only. Try 0.3–0.7.">SVD Blend α</label>
+                <input id="optSvdAlpha" type="number" min="0" max="1" step="0.05" placeholder="0.5" title="Blend between TF–IDF and SVD cosine: 1.0 = TF–IDF only, 0.0 = SVD only. Try 0.3–0.7." />
+              </div>
+            </div>
+          </div>
+
+          <div class="section" id="sec-build">
+            <h3>Index Build</h3>
+            <div class="checkbox">
+              <input type="checkbox" id="optLowMem" checked title="Use smaller batches and periodic commits to limit memory usage" />
+              <label for="optLowMem" class="label" title="Use smaller batches and periodic commits to limit memory usage">Low-memory mode (safer on large builds)</label>
+            </div>
+            <div class="row2">
+              <div class="field">
+                <label class="label" for="optPostBatch" title="Max postings inserted per batch; lower reduces peak RAM and transaction size">Postings batch size</label>
+                <input id="optPostBatch" type="number" min="10000" step="5000" placeholder="100000" title="Max postings inserted per batch; lower reduces peak RAM and transaction size" />
+              </div>
+              <div class="field">
+                <label class="label" for="optCommitPapers" title="Perform a database commit every N papers to avoid huge transactions">Commit every N papers</label>
+                <input id="optCommitPapers" type="number" min="10" step="10" placeholder="50" title="Perform a database commit every N papers to avoid huge transactions" />
+              </div>
+            </div>
+            <div class="row2">
+              <div class="field">
+                <label class="label" for="optMode" title="Choose how to build: Index only (merge vectors) or Full (vectorize + index)">Build mode</label>
+                <select id="optMode" title="Choose how to build: Index only (merge vectors) or Full (vectorize + index)">
+                  <option value="index-only">Index only (default)</option>
+                  <option value="full">Full (vectorize + index)</option>
+                  <option value="sharded">Sharded (advanced)</option>
+                </select>
+              </div>
+              <div class="field">
+                <label class="label" for="optLimit" title="Process only this many papers; useful for testing">Limit papers (debug)</label>
+                <input id="optLimit" type="number" min="1" placeholder="e.g. 500" title="Process only this many papers; useful for testing" />
+              </div>
+            </div>
+            <div class="row2">
+              <div class="field">
+                <label class="label" for="optShards" title="Number of shard databases to build and merge (advanced)">Shards (advanced)</label>
+                <input id="optShards" type="number" min="1" step="1" placeholder="4" title="Number of shard databases to build and merge (advanced)" />
+              </div>
+              <div class="field">
+                <label class="label" for="optShardWorkers" title="Parallel shard builders; set to CPU cores or slightly less">Shard workers</label>
+                <input id="optShardWorkers" type="number" min="1" step="1" placeholder="auto" title="Parallel shard builders; set to CPU cores or slightly less" />
+              </div>
+            </div>
+            <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:6px;">
+              <button id="btnStartBuild" class="btn">Start Index Build</button>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+    <!-- Load shared app logic after modal so event listeners bind properly -->
+    <script src="./app.js?v=ui2-9"></script>
+    <script>
+      // UI2 Settings: load/save LLM + search opts; test LLM
+      (function(){
+        const btnSettings = document.getElementById('btnSettings');
+        const btnSave = document.getElementById('btnSaveSettings');
+        const btnTest = document.getElementById('btnTestLlm');
+        const banner = document.getElementById('banner');
+        // LLM
+        const modelSel = document.getElementById('optLlmModel');
+        const keyInput = document.getElementById('optOpenAIKey');
+        async function loadLlm(){
+          try{ const r = await fetch('/api/llm/settings'); const j = await r.json(); if(j && j.ok){ if(modelSel && j.model) modelSel.value = j.model; if(keyInput) keyInput.placeholder = j.has_key ? 'Saved (enter to replace)' : 'sk-...'; } }catch(e){}
+        }
+        async function saveLlm(){
+          try{
+            const payload = { provider:'openai', model: modelSel && modelSel.value };
+            const k = (keyInput && keyInput.value) || '';
+            if(k) payload.api_key = k;
+            const r = await fetch('/api/llm/settings', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+            const j = await r.json();
+            if (j && j.ok) { if (keyInput) keyInput.value=''; if (banner) banner.textContent='Settings saved'; }
+            else { if (banner) banner.textContent='Failed to save settings'; }
+          }catch(e){ if (banner) banner.textContent='Failed to save settings'; }
+        }
+        // Search opts
+        const kindSel = document.getElementById('optSearchKind');
+        const perPaper = document.getElementById('optSearchPerPaper');
+        const maxRes = document.getElementById('optSearchMax');
+        const scoringSel = document.getElementById('optScoring');
+        const bm25K1 = document.getElementById('optBm25K1');
+        const bm25B = document.getElementById('optBm25B');
+        const svdEnable = document.getElementById('optSvdEnable');
+        const svdTopN = document.getElementById('optSvdTopN');
+        const svdAlpha = document.getElementById('optSvdAlpha');
+        const twoPassEnable = document.getElementById('optTwoPassEnable');
+        const twoPassTopN = document.getElementById('optTwoPassTopN');
+        async function loadSearch(){
+          try{
+            // Prefer server-persisted settings if available
+            const r = await fetch('/api/search/settings');
+            const j = await r.json();
+            const srv = (j && j.ok && j.settings) ? j.settings : null;
+            const raw=localStorage.getItem('PSB_SEARCH_OPTS')||'{}';
+            const loc=JSON.parse(raw);
+            const o = srv || loc || {};
+            try{ if(srv) localStorage.setItem('PSB_SEARCH_OPTS', JSON.stringify(o)); }catch(e){}
+            if(kindSel&&o.kind) kindSel.value=o.kind;
+            if(perPaper&&o.perPaper) perPaper.value=String(o.perPaper);
+            if(maxRes&&o.maxResults) maxRes.value=String(o.maxResults);
+            if(scoringSel&&o.scoring) scoringSel.value=o.scoring;
+            if(bm25K1&&o.bm25K1) bm25K1.value=String(o.bm25K1);
+            if(bm25B&&(o.bm25B!==undefined)) bm25B.value=String(o.bm25B);
+            if(svdEnable) svdEnable.checked=!!o.svdEnable;
+            if(svdTopN&&o.svdTopN) svdTopN.value=String(o.svdTopN);
+            if(svdAlpha&&(o.svdAlpha!==undefined)) svdAlpha.value=String(o.svdAlpha);
+            if(twoPassEnable) twoPassEnable.checked = !!o.twoPassEnable;
+            if(twoPassTopN&&o.twoPassTopN) twoPassTopN.value = String(o.twoPassTopN);
+          }catch(e){ /* ignore */ }
+        }
+        async function saveSearch(){
+          try{
+            const o={
+              kind: kindSel&&kindSel.value||'both',
+              perPaper: perPaper&&perPaper.value?parseInt(perPaper.value,10):null,
+              maxResults: maxRes&&maxRes.value?parseInt(maxRes.value,10):null,
+              scoring: scoringSel&&scoringSel.value||'tfidf',
+              bm25K1: bm25K1&&bm25K1.value?parseFloat(bm25K1.value):null,
+              bm25B: bm25B&&bm25B.value?parseFloat(bm25B.value):null,
+              svdEnable: !!(svdEnable&&svdEnable.checked),
+              svdTopN: svdTopN&&svdTopN.value?parseInt(svdTopN.value,10):null,
+              svdAlpha: svdAlpha&&svdAlpha.value?parseFloat(svdAlpha.value):null,
+              twoPassEnable: !!(twoPassEnable&&twoPassEnable.checked),
+              twoPassTopN: twoPassTopN&&twoPassTopN.value?parseInt(twoPassTopN.value,10):null
+            };
+            localStorage.setItem('PSB_SEARCH_OPTS', JSON.stringify(o));
+            // Persist to server
+            await fetch('/api/search/settings', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ settings: o }) });
+          }catch(e){ /* ignore */ }
+        }
+        btnSettings && btnSettings.addEventListener('click', ()=>{ loadLlm(); loadSearch(); });
+        btnSave && btnSave.addEventListener('click', ()=>{ saveLlm(); saveSearch(); });
+        btnTest && btnTest.addEventListener('click', async ()=>{ const b=banner; try{ if(b) b.textContent='Testing LLM...'; const r=await fetch('/api/llm/test', { method:'POST' }); const j=await r.json(); if(j&&j.ok){ if(b) b.textContent=`LLM OK (model: ${j.model||''})`; } else { if(b) b.textContent=`LLM error: ${(j&&(j.detail||j.error))||'unknown'}`; } }catch(e){ if(b) b.textContent='LLM test failed'; } });
+      })();
+    </script>
+  </body>
+</html>

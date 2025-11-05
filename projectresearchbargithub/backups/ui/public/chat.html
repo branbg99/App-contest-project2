@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ProjectSearchBar — Chat</title>
+    <!-- KaTeX for LaTeX rendering (client-side) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css" />
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"></script>
+    <style>
+      :root {
+        color-scheme: dark;
+        /* Gruvbox Dark (soft) */
+        --bg: #32302f;
+        --bg-alt: #3c3836;
+        --panel: #282828;
+        --panel-alt: #3c3836;
+        --text: #ebdbb2;
+        --muted: #bdae93;
+        --border: #504945;
+        --link: #83a598;
+        --accent: #fe8019;      /* orange */
+        --accent-text: #1d2021;
+        --accent-border: #d65d0e;
+      }
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin:0; background: var(--bg); color: var(--text); }
+      header { position: sticky; top:0; z-index: 10; background: var(--panel); border-bottom:1px solid var(--border); padding: 8px 12px; display:flex; gap:8px; align-items:center; }
+      h1 { margin:0; font-size:14px; color: var(--link); }
+      .row { display:flex; gap:8px; align-items:center; flex:1; }
+      input[type=text] { flex:1; padding:8px 10px; background: var(--panel-alt); color: var(--text); border:1px solid var(--border); border-radius:6px; }
+      button { padding:7px 10px; border:1px solid var(--accent-border); background: var(--accent); color: var(--accent-text); border-radius:6px; cursor:pointer; }
+      button.secondary { border-color: var(--border); background: var(--panel-alt); color: var(--text); }
+      main { padding: 12px; }
+      #messages { max-width: 1100px; margin: 0 auto; }
+      .toolbar { display:flex; gap:8px; align-items:center; flex-wrap: wrap; }
+      .muted { color: var(--muted); }
+      .status { font-size:12px; color: var(--muted); }
+      footer { position: sticky; bottom:0; background: rgba(29,32,33,0.95); border-top:1px solid var(--border); padding:10px 12px; display:flex; gap:8px; }
+      .small { font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>ProjectSearchBar</h1>
+      <div class="row">
+        <input id="askInput" type="text" placeholder="Ask AI about papers (supports LaTeX like $x^2+y^2$)" />
+        <button id="btnAsk">Ask AI</button>
+        <button id="btnSettings" class="secondary" onclick="location.href='index.html'">Settings</button>
+        <span id="status" class="status"></span>
+      </div>
+    </header>
+    <main>
+      <div id="messages"></div>
+    </main>
+    <footer>
+      <div class="toolbar small">
+        <label class="muted">Top K <input id="optTopK" type="number" min="1" max="50" value="5" style="width:64px; padding:4px 6px; background: var(--panel-alt); color: var(--text); border:1px solid var(--border); border-radius:6px;"></label>
+        <label class="muted">Per-paper <input id="optPerPaper" type="number" min="1" max="5" value="2" style="width:64px; padding:4px 6px; background: var(--panel-alt); color: var(--text); border:1px solid var(--border); border-radius:6px;"></label>
+        <span class="muted">Results come from the TF–IDF index.</span>
+      </div>
+    </footer>
+
+    <!-- Chat renderer bundle from api_gui_modular -->
+    <script src="./assets/chat-renderer-standalone.js"></script>
+    <script>
+      // Simple helper to render KaTeX once auto-render is available
+      function renderMathIn(node){
+        if(!node || typeof renderMathInElement !== 'function'){ setTimeout(()=>renderMathIn(node), 50); return; }
+        try {
+          const macros = {
+            "\\RR": "\\mathbb{R}",
+            "\\ZZ": "\\mathbb{Z}",
+            "\\NN": "\\mathbb{N}",
+            "\\QQ": "\\mathbb{Q}",
+            "\\CC": "\\mathbb{C}",
+            "\\PP": "\\mathbb{P}",
+            "\\HH": "\\mathbb{H}",
+            "\\eps": "\\varepsilon",
+            "\\normalout": "\\mathrm{normal}_{\\mathrm{out}}",
+            "\\normalin": "\\mathrm{normal}_{\\mathrm{in}}",
+            "\\vol": "\\operatorname{vol}",
+            "\\dist": "\\operatorname{dist}"
+          };
+          renderMathInElement(node, {
+            delimiters:[{left:'$$',right:'$$',display:true},{left:'\\[',right:'\\]',display:true},{left:'$',right:'$',display:false},{left:'\\(',right:'\\)',display:false}],
+            throwOnError:false,
+            macros
+          });
+        } catch {}
+      }
+
+      const askEl = document.getElementById('askInput');
+      const btnAsk = document.getElementById('btnAsk');
+      const statusEl = document.getElementById('status');
+      const topKEl = document.getElementById('optTopK');
+      const perPaperEl = document.getElementById('optPerPaper');
+
+      function setStatus(s){ statusEl.textContent = s || ''; }
+
+      async function doSearchAsk(){
+        const q = (askEl.value || '').trim();
+        if(!q) return;
+        try{
+          chatRenderer.addMessage('user', q);
+          chatRenderer.showLoading(true);
+          setStatus('Searching...');
+          const top_k = parseInt(topKEl.value||'5',10);
+          const per_paper_k = parseInt(perPaperEl.value||'2',10);
+          const r = await fetch('/api/search', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ query: q, top_k: Math.max(1, top_k), kind: 'both', per_paper_k: Math.max(1, per_paper_k) }) });
+          const j = await r.json();
+          chatRenderer.showLoading(false);
+          if(!j.ok){
+            setStatus(j.error==='busy' ? 'Index building — retry shortly' : (j.error||'Search failed'));
+            chatRenderer.addMessage('assistant', 'I could not search right now. ' + (j.error||''));
+            return;
+          }
+          setStatus(`Found ${j.results.length} (scanned ${j.scanned})`);
+          if(!j.results.length){ chatRenderer.addMessage('assistant', 'No results found. Try broader terms or build the index.'); return; }
+          const lines = [];
+          lines.push('Top results:');
+          for (const rec of j.results) {
+            const preview = (rec.text||'').replace(/\s+/g,' ').slice(0,180);
+            const aid = rec.paperId;
+            lines.push(`- [${aid}] (${rec.kind}) ${preview}...`);
+          }
+          lines.push('\nSources:');
+          for (const rec of j.results) {
+            const aid = rec.paperId;
+            lines.push(`- ${aid}: https://arxiv.org/abs/${aid} · https://arxiv.org/pdf/${aid}.pdf`);
+          }
+          chatRenderer.addMessage('assistant', lines.join('\n'));
+          // Render math in the most recent assistant block
+          try { renderMathIn(document.getElementById('messages')); } catch(e){}
+        }catch(e){
+          chatRenderer.showLoading(false);
+          setStatus('Error');
+          chatRenderer.addMessage('assistant', 'There was an error contacting the server.');
+        }
+      }
+
+      btnAsk.addEventListener('click', doSearchAsk);
+      askEl.addEventListener('keydown', (e)=>{ if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='enter') doSearchAsk(); });
+    </script>
+  </body>
+  </html>

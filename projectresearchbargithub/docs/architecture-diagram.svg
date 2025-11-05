@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900">
+  <defs>
+    <style type="text/css"><![CDATA[
+      .title { font: 700 20px 'Segoe UI', Arial, sans-serif; fill: #111; }
+      .label { font: 600 14px 'Segoe UI', Arial, sans-serif; fill: #111; }
+      .small { font: 12px 'Segoe UI', Arial, sans-serif; fill: #111; }
+      .box { fill: #fff; stroke: #333; stroke-width: 1.5; rx: 8; ry: 8; }
+      .group { fill: #fafafa; stroke: #444; stroke-width: 2; stroke-dasharray: 6 6; rx: 12; ry: 12; }
+      .system { fill: #fefefe; stroke: #555; stroke-width: 2; rx: 10; ry: 10; }
+      .edge { stroke: #333; stroke-width: 1.5; fill: none; }
+      .edge-dim { stroke: #666; stroke-width: 1.2; fill: none; stroke-dasharray: 4 3; }
+      .caption { font: italic 12px 'Segoe UI', Arial, sans-serif; fill: #333; }
+      .tag { font: 11px 'Segoe UI', Arial, sans-serif; fill: #111; }
+      .labelbg { fill: #fff; stroke: #fff; opacity: 0.92; }
+    ]]></style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#333" />
+    </marker>
+    <marker id="arrowDim" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#666" />
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="30" y="36" class="title">ProjectSearchBar — Architecture Overview</text>
+  <text x="30" y="58" class="caption">Local academic paper search with math‑aware tokenization; optional per‑paper chat via an LLM.</text>
+
+  <!-- Trust Boundary: Local Machine -->
+  <g id="local-boundary">
+    <rect class="group" x="20" y="70" width="980" height="810" />
+    <text x="32" y="92" class="label">Trust Boundary: Local Machine</text>
+  </g>
+
+  <!-- Trust Boundary: External Internet -->
+  <g id="external-boundary">
+    <rect class="group" x="1020" y="70" width="360" height="810" />
+    <text x="1032" y="92" class="label">Trust Boundary: External Internet</text>
+  </g>
+
+  <!-- System Boundary: ProjectSearchBar -->
+  <g id="system-boundary">
+    <rect class="system" x="40" y="110" width="940" height="600" />
+    <text x="52" y="132" class="label">System: ProjectSearchBar</text>
+
+    <!-- UI -->
+    <g id="ui-box">
+      <rect class="box" x="60" y="180" width="240" height="110" />
+      <text x="74" y="205" class="label">UI (ui2/public)</text>
+      <text x="74" y="225" class="small">Browser or pywebview</text>
+      <text x="74" y="245" class="small">HTTP 127.0.0.1:8360</text>
+    </g>
+
+    <!-- API Server -->
+    <g id="api-box">
+      <rect class="box" x="340" y="170" width="300" height="130" />
+      <text x="354" y="195" class="label">Python HTTP API Server</text>
+      <text x="354" y="213" class="small">ThreadingHTTPServer + SearchRequestHandler</text>
+      <text x="354" y="231" class="small">Endpoints:</text>
+      <text x="354" y="249" class="small">/api/search, /api/paper/meta, /api/chat/*</text>
+    </g>
+
+    <!-- Tokenizer -->
+    <g id="tokenizer-box">
+      <rect class="box" x="340" y="320" width="300" height="80" />
+      <text x="354" y="345" class="label">Tokenizer module</text>
+      <text x="354" y="365" class="small">tokenize.py (text + LaTeX, canonicalization)</text>
+    </g>
+
+    <!-- Search Engine -->
+    <g id="search-box">
+      <rect class="box" x="340" y="420" width="300" height="80" />
+      <text x="354" y="445" class="label">Search Engine</text>
+      <text x="354" y="465" class="small">TF‑IDF cosine + BM25</text>
+    </g>
+
+    <!-- SQLite DB -->
+    <g id="db-box">
+      <rect class="box" x="660" y="420" width="300" height="110" />
+      <text x="674" y="445" class="label">SQLite DB</text>
+      <text x="674" y="465" class="small">data/index.sqlite</text>
+      <text x="674" y="485" class="small">Tables: token, paper, chunk, posting</text>
+    </g>
+
+    <!-- Caches/Settings -->
+    <g id="cache-box">
+      <rect class="box" x="660" y="290" width="300" height="90" />
+      <text x="674" y="315" class="label">Caches &amp; Settings</text>
+      <text x="674" y="335" class="small">data/meta/*.json (paper metadata)</text>
+      <text x="674" y="353" class="small">data/llm_settings.json (OpenAI key/model)</text>
+    </g>
+
+    <!-- Vectors -->
+    <g id="vectors-box">
+      <rect class="box" x="660" y="560" width="300" height="90" />
+      <text x="674" y="585" class="label">Vector Files</text>
+      <text x="674" y="605" class="small">data/vectors/&lt;arxiv_id&gt;/chunks.jsonl</text>
+      <text x="674" y="623" class="small">LaTeX/text tokens per chunk</text>
+    </g>
+
+    <!-- Tools -->
+    <g id="tools-box">
+      <rect class="box" x="60" y="520" width="240" height="150" />
+      <text x="74" y="545" class="label">Tools</text>
+      <text x="74" y="565" class="small">tools/vectorize.py → write chunks.jsonl</text>
+      <text x="74" y="583" class="small">tools/build_index.py → index.build.sqlite</text>
+      <text x="74" y="601" class="small">Atomic swap → data/index.sqlite</text>
+    </g>
+
+    <!-- Edges inside system -->
+    <!-- UI → API (no long label; port is in UI box) -->
+    <path class="edge" marker-end="url(#arrow)" d="M 300 235 L 340 235" />
+
+    <!-- API → Tokenizer → Search -->
+    <path class="edge" marker-end="url(#arrow)" d="M 490 300 L 490 320" />
+    <path class="edge" marker-end="url(#arrow)" d="M 490 400 L 490 420" />
+
+    <!-- Search → SQLite DB -->
+    <path class="edge" marker-end="url(#arrow)" d="M 640 460 L 660 460" />
+    <rect x="630" y="440" width="36" height="18" rx="3" ry="3" class="labelbg" />
+    <text x="648" y="454" class="small" text-anchor="middle">SQL</text>
+
+    <!-- API ↔ Caches/Settings (curved) -->
+    <path class="edge-dim" marker-end="url(#arrowDim)" d="M 640 235 C 650 235, 650 335, 660 335" />
+    <rect x="604" y="330" width="86" height="18" rx="3" ry="3" class="labelbg" />
+    <text x="647" y="343" class="small" text-anchor="middle">read/write</text>
+
+    <!-- API → Vector Files (read, curved) -->
+    <path class="edge-dim" marker-end="url(#arrowDim)" d="M 640 260 C 650 260, 650 605, 660 605" />
+    <rect x="604" y="598" width="56" height="18" rx="3" ry="3" class="labelbg" />
+    <text x="632" y="611" class="small" text-anchor="middle">read</text>
+
+    <!-- Tools → Vector Files (write) -->
+    <path class="edge" marker-end="url(#arrow)" d="M 300 595 L 660 595" />
+    <rect x="430" y="580" width="110" height="18" rx="3" ry="3" class="labelbg" />
+    <text x="485" y="593" class="small" text-anchor="middle">write chunks</text>
+
+    <!-- Tools → SQLite DB (build) -->
+    <path class="edge" marker-end="url(#arrow)" d="M 300 640 L 660 640" />
+    <rect x="380" y="628" width="260" height="18" rx="3" ry="3" class="labelbg" />
+    <text x="510" y="641" class="small" text-anchor="middle">index.build.sqlite → index.sqlite</text>
+  </g>
+
+  <!-- External Services -->
+  <g id="external-services">
+    <g id="arxiv-box">
+      <rect class="box" x="1040" y="170" width="320" height="110" />
+      <text x="1054" y="195" class="label">arXiv Atom API</text>
+      <text x="1054" y="215" class="small">Metadata (batch id_list)</text>
+      <text x="1054" y="235" class="small">HTTPS</text>
+    </g>
+    <g id="openai-box">
+      <rect class="box" x="1040" y="320" width="320" height="110" />
+      <text x="1054" y="345" class="label">OpenAI API (optional)</text>
+      <text x="1054" y="365" class="small">Chat completions for paper Q&amp;A</text>
+      <text x="1054" y="385" class="small">HTTPS</text>
+    </g>
+  </g>
+
+  <!-- Edges: API Server ↔ External Services (with labels on the right) -->
+  <path class="edge" marker-end="url(#arrow)" d="M 640 215 C 820 215, 940 205, 1040 205" />
+  <rect x="1100" y="150" width="230" height="20" rx="3" ry="3" class="labelbg" />
+  <text x="1215" y="164" class="small" text-anchor="middle">HTTPS metadata (optional)</text>
+
+  <path class="edge" marker-end="url(#arrow)" d="M 640 255 C 820 255, 940 375, 1040 375" />
+  <rect x="1100" y="410" width="220" height="20" rx="3" ry="3" class="labelbg" />
+  <text x="1210" y="424" class="small" text-anchor="middle">HTTPS chat (optional)</text>
+
+  <!-- Footer note -->
+  <text x="30" y="870" class="caption">Include this diagram as a PNG/PDF in your submission (no links). Edit labels as needed for your configuration.</text>
+</svg>
+

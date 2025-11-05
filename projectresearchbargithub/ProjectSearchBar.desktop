@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=ProjectSearchBar
+Comment=Launch ProjectSearchBar without a terminal
+Terminal=false
+TryExec=python3
+Exec=/usr/bin/env bash -lc 'cd "$(dirname "%k")"; exec python3 launch.py'
+Categories=Utility;
+
