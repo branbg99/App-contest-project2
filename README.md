@@ -1,6 +1,13 @@
 Hello, this is my prototype for the APP competition.
 This is how to download and use the prototype.
 
+- unzip projectresearchbargithub.zip && cd projectresearchbargithub
+- python3 -m venv .venv && . .venv/bin/activate
+- pip install requests pywebview  (pywebview optional)
+- python3 launch.py
+- The app serves at http://127.0.0.1:8360 and opens automatically.
+(Or download the file and ask ChatGPT for help on how to download this stuff and run it)
+
 Download the zip and extract.
 If you are on windows run the launch_windows.exe/bat file
 If you are on linux run .sh file, launch.sh
@@ -25,3 +32,4 @@ You can copy exerpts from papers and paste them into the search bar to find them
 
 To use the AI, you will need an API key from open AI.
 https://platform.openai.com/api-keys
+
