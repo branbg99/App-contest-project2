@@ -1,11 +1,16 @@
 Hello, this is my prototype for the APP competition.
 This is how to download and use the prototype.
 
-- unzip projectresearchbargithub.zip && cd projectresearchbargithub
-- python3 -m venv .venv && . .venv/bin/activate
-- pip install requests pywebview  (pywebview optional)
-- python3 launch.py
-- The app serves at http://127.0.0.1:8360 and opens automatically.
+- Linux/macOS:
+    - cd /path//to/projectresearchbargithub
+    - python3 -m venv .venv && . .venv/bin/activate
+    - pip install -r requirements.txt
+    - python3 launch.py
+- Windows:
+    - cd \path\to\projectresearchbargithub
+    - py -m venv .venv && .venv\Scripts\activate
+    - pip install -r requirements.txt
+    - py launch.py.
 (Or download the file and ask ChatGPT for help on how to download this stuff and run it)
 
 Download the zip and extract.
