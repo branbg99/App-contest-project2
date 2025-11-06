@@ -33,6 +33,7 @@ Once you search you can run agents and prompt and agent that goes off and reads 
 You can also adjust settings or choose how results are ranked, cosine or bm25.
 You can copy exerpts from papers and paste them into the search bar to find them.
 
+
 ---
 
 To use the AI, you will need an API key from open AI.
